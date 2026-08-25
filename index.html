@@ -70,14 +70,14 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
 </header>
 
 <div class="toolbar">
-  <div class="field"><label>MÊS</label><select id="mes" onchange="render()">
+  <div class="field"><label>MÊS</label><select id="mes" onchange="render(true)">
     <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
     <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
     <option value="7">Julho</option><option value="8" selected>Agosto</option><option value="9">Setembro</option>
     <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
   </select></div>
-  <div class="field"><label>ANO</label><input id="ano" type="number" value="2026" min="2020" max="2100" onchange="render()"></div>
-  <div class="field"><label>BUSCAR CLIENTE / PRODUTO</label><input id="busca" placeholder="Digite para filtrar..." oninput="render()"></div>
+  <div class="field"><label>ANO</label><input id="ano" type="number" value="2026" min="2020" max="2100" onchange="render(true)"></div>
+  <div class="field"><label>BUSCAR CLIENTE / PRODUTO</label><input id="busca" placeholder="Digite para filtrar..." oninput="render(true)"></div>
   <button class="primary" onclick="abrirLancamento()">+ Novo lançamento</button>
   <button class="secondary" onclick="adicionarCliente()">+ Cliente / Produto</button>
   <button class="purple" onclick="abrirResumo()">📊 Ver Resumo Geral / Ranking</button>
@@ -104,7 +104,7 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
     <div>
       <h2 id="tituloTabela" style="margin:0">Produção</h2>
-      <div class="hint">Digite o valor e pressione <strong>ENTER</strong> para confirmar e ir para o próximo dia. Use (← →) para navegar.</div>
+      <div class="hint">Clique em qualquer dia, digite a quantidade e pressione <strong>ENTER</strong> ou mude com o mouse.</div>
     </div>
     <button class="secondary" onclick="limparMes()">Limpar mês atual</button>
   </div>
@@ -146,7 +146,7 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
 <div class="toast" id="toast">Salvo na nuvem!</div>
 
 <script>
-// CONFIGURAÇÃO DO FIREBASE INTEGRADAS
+// CONFIGURAÇÃO DO FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyBAFZ-cV19gjmqldhwJJWeaB3P5sIiqVSc",
   authDomain: "prodcardnet.firebaseapp.com",
@@ -158,7 +158,6 @@ const firebaseConfig = {
   measurementId: "G-WERMVH6EDG"
 };
 
-// Inicialização das instâncias do Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
@@ -195,10 +194,10 @@ const CLIENTES_PADRAO = {
 
 let abaAtiva = 'producao';
 let bancoDados = {};
-let editandoElemento = false;
+let usuarioEditando = false; // Bloqueia redesenho enquanto o usuário mexe na tabela
 const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// Conexão e sincronização contínua com Firebase Realtime Database
+// Conexão e sincronização Firebase
 const dbRef = database.ref('producao_dados');
 dbRef.on('value', (snapshot) => {
   const data = snapshot.val();
@@ -208,9 +207,9 @@ dbRef.on('value', (snapshot) => {
   document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
   document.getElementById('statusFirebase').style.background = '#16a34a33';
   
-  // Evita reconstruir a tela inteira enquanto o usuário digita
-  if (!editandoElemento) {
-    render();
+  // Só redesenha a tabela inteira se o usuário NÃO estiver com o cursor em nenhuma célula
+  if (!usuarioEditando) {
+    render(false);
   }
 }, (error) => {
   document.getElementById('statusFirebase').innerText = '🔴 Erro na conexão Firebase';
@@ -248,10 +247,12 @@ function mudarAba(aba) {
   abaAtiva = aba;
   document.getElementById('tabProducao').classList.toggle('active', aba === 'producao');
   document.getElementById('tabChip').classList.toggle('active', aba === 'chip');
-  render();
+  render(true);
 }
 
-function render() {
+function render(forcar = false) {
+  if (usuarioEditando && !forcar) return;
+
   const mes = parseInt(document.getElementById('mes').value);
   const ano = parseInt(document.getElementById('ano').value);
   const busca = document.getElementById('busca').value.toLowerCase();
@@ -303,8 +304,8 @@ function render() {
       html += `<td class="${eFimDeSemana ? 'weekend' : ''}">
         <input class="day-input" type="number" step="any" 
         data-row="${index}" data-col="${d}"
-        onfocus="editandoElemento=true; this.select()"
-        onblur="editandoElemento=false"
+        onfocus="usuarioEditando=true; this.select()"
+        onblur="usuarioEditando=false"
         onkeydown="tratarTeclado(event, ${index}, ${d}, this)"
         value="${val !== null && val !== undefined ? val : ''}" 
         onchange="atualizarValor(${index}, ${d}, this.value)">
@@ -369,14 +370,14 @@ function atualizarValor(clienteIdx, dia, valor) {
     }
     clienteReal.dias[dia] = valor === '' ? null : parseFloat(valor);
     
-    // Salva no banco de dados sem regerar a tabela do zero
+    // Salva no Firebase sem redesenhar o HTML da tabela
     salvarDados();
     recalcularTotaisSemRedesenhar();
     exibirToast();
   }
 }
 
-// Atualiza apenas os números dos totais sem recriar os campos de texto da tela
+// Recalcula totais alterando apenas os elementos de texto das somas
 function recalcularTotaisSemRedesenhar() {
   const mes = parseInt(document.getElementById('mes').value);
   const ano = parseInt(document.getElementById('ano').value);
@@ -472,7 +473,7 @@ function salvarLancamento() {
     cliente.dias[diaIndex] = qtd;
     salvarDados();
     fecharModal('modalBg');
-    render();
+    render(true);
     exibirToast();
   }
 }
@@ -492,7 +493,7 @@ function adicionarCliente() {
     dadosMes[abaAtiva].sort((a, b) => a.nome.localeCompare(b.nome));
     
     salvarDados();
-    render();
+    render(true);
     exibirToast();
   }
 }
@@ -685,7 +686,7 @@ function limparMes() {
     const dadosMes = obterDadosMesAtual();
     (dadosMes[abaAtiva] || []).forEach(c => c.dias = new Array(31).fill(null));
     salvarDados();
-    render();
+    render(true);
     exibirToast();
   }
 }
@@ -706,7 +707,7 @@ function importarBackup(event) {
     try {
       bancoDados = JSON.parse(e.target.result);
       salvarDados();
-      render();
+      render(true);
       alert("Backup completo restaurado e salvo no Firebase com sucesso!");
     } catch (err) {
       alert("Erro ao ler arquivo de backup.");
