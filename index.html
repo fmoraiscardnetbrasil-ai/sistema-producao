@@ -333,12 +333,44 @@ let bancoDados = {};
 let usuarioEditando = false;
 const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
+// GARANTE QUE O ARRAY DE DIAS TENHA SEMPRE 31 POSIÇÕES MANTENDO A POSIÇÃO CORRETA DOS DIAS
+function normalizarArrayDias(diasEntrada) {
+  const arr = new Array(31).fill(null);
+  if (!diasEntrada) return arr;
+  
+  if (Array.isArray(diasEntrada)) {
+    for (let i = 0; i < 31; i++) {
+      const val = diasEntrada[i];
+      arr[i] = (val !== undefined && val !== null && val !== '') ? parseFloat(val) : null;
+    }
+  } else if (typeof diasEntrada === 'object') {
+    Object.keys(diasEntrada).forEach(k => {
+      const idx = parseInt(k, 10);
+      if (!isNaN(idx) && idx >= 0 && idx < 31) {
+        const val = diasEntrada[k];
+        arr[idx] = (val !== undefined && val !== null && val !== '') ? parseFloat(val) : null;
+      }
+    });
+  }
+  return arr;
+}
+
 function iniciarEscutaFirebase() {
   const dbRef = database.ref('producao_dados');
   dbRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (data) {
       bancoDados = data;
+      // Normalizar todo o banco para evitar desalinhamento de dias
+      Object.keys(bancoDados).forEach(chave => {
+        ['producao', 'chip'].forEach(cat => {
+          if (bancoDados[chave][cat]) {
+            bancoDados[chave][cat].forEach(item => {
+              item.dias = normalizarArrayDias(item.dias);
+            });
+          }
+        });
+      });
     }
     document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
     document.getElementById('statusFirebase').style.background = '#16a34a33';
@@ -373,8 +405,14 @@ function obterDadosMesAtual() {
     salvarDados();
   }
 
-  if (bancoDados[chave].producao) bancoDados[chave].producao.sort((a, b) => a.nome.localeCompare(b.nome));
-  if (bancoDados[chave].chip) bancoDados[chave].chip.sort((a, b) => a.nome.localeCompare(b.nome));
+  ['producao', 'chip'].forEach(cat => {
+    if (bancoDados[chave][cat]) {
+      bancoDados[chave][cat].forEach(item => {
+        item.dias = normalizarArrayDias(item.dias);
+      });
+      bancoDados[chave][cat].sort((a, b) => a.nome.localeCompare(b.nome));
+    }
+  });
 
   return bancoDados[chave];
 }
@@ -419,14 +457,13 @@ function render(forcar = false) {
     let somaCliente = 0;
     let lancamentosCliente = 0;
     
-    // NOME DO CLIENTE + BOTÃO DE DELETAR
     html += `<tr id="row-${index}">
       <td class="name">
         <span>${item.nome}</span>
         <button class="btn-delete" title="Excluir este cliente" onclick="deletarCliente('${item.nome.replace(/'/g, "\\'")}')">🗑️</button>
       </td>`;
       
-    const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
+    const arrayDias = normalizarArrayDias(item.dias);
     
     for (let d = 0; d < totalDias; d++) {
       const val = arrayDias[d];
@@ -517,9 +554,7 @@ function atualizarValor(clienteIdx, dia, valor) {
   const clienteReal = listaFiltrada[clienteIdx];
   
   if (clienteReal) {
-    if (!clienteReal.dias || !Array.isArray(clienteReal.dias)) {
-      clienteReal.dias = new Array(31).fill(null);
-    }
+    clienteReal.dias = normalizarArrayDias(clienteReal.dias);
     clienteReal.dias[dia] = valor === '' ? null : parseFloat(valor);
     
     salvarDados();
@@ -545,7 +580,7 @@ function recalcularTotaisSemRedesenhar() {
   lista.forEach((item, index) => {
     let somaCliente = 0;
     let lancamentosCliente = 0;
-    const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
+    const arrayDias = normalizarArrayDias(item.dias);
     
     for (let d = 0; d < totalDias; d++) {
       const val = arrayDias[d];
@@ -617,9 +652,7 @@ function salvarLancamento() {
   const cliente = (dadosMes[abaAtiva] || []).find(c => c.nome === nomeCliente);
   
   if (cliente) {
-    if (!cliente.dias || !Array.isArray(cliente.dias)) {
-      cliente.dias = new Array(31).fill(null);
-    }
+    cliente.dias = normalizarArrayDias(cliente.dias);
     cliente.dias[diaIndex] = qtd;
     salvarDados();
     fecharModal('modalBg');
@@ -650,7 +683,7 @@ function adicionarCliente() {
 
 function somarDias(dias) {
   if (!dias) return 0;
-  const lista = Array.isArray(dias) ? dias : Object.values(dias);
+  const lista = normalizarArrayDias(dias);
   return lista.reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
 }
 
@@ -741,7 +774,7 @@ function gerarTabelaAbaPDF(doc, dadosLista, tituloSecao, mes, ano, totalDias, st
     let somaCliente = 0;
     let lancamentosCliente = 0;
     const row = [item.nome];
-    const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
+    const arrayDias = normalizarArrayDias(item.dias);
 
     for (let d = 0; d < totalDias; d++) {
       const val = arrayDias[d];
