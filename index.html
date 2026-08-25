@@ -444,12 +444,15 @@ function abrirResumo() {
   if (ranking.length === 0) {
     listaEl.innerHTML = '<li style="padding:15px;text-align:center;color:var(--muted)">Nenhum lançamento registrado neste mês.</li>';
   } else {
-    listaEl.innerHTML = ranking.map((item, pos) => `
-      <li class="ranking-item">
-        <span><strong>#${pos + 1}</strong> ${item.nome}</span>
-        <span class="badge">${item.total.toLocaleString('pt-BR')} unid</span>
-      </li>
-    `).join('');
+    listaEl.innerHTML = ranking.map((item, pos) => {
+      const nomeLimpo = String(item.nome).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `
+        <li class="ranking-item">
+          <span><strong>#${pos + 1}</strong> ${nomeLimpo}</span>
+          <span class="badge">${item.total.toLocaleString('pt-BR')} unid</span>
+        </li>
+      `;
+    }).join('');
   }
 
   document.getElementById('modalResumo').classList.add('active');
