@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Produção Diária | Sistema</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<!-- Scripts do Firebase SDK (Compatível com navegador) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+:root{--blue:#2563eb;--blue2:#1d4ed8;--bg:#f1f5f9;--card:#fff;--line:#d9e2ec;--text:#172033;--muted:#64748b;--green:#16a34a;--red:#dc2626;--purple:#7c3aed}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.app{max-width:1500px;margin:auto;padding:20px}
+header{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;padding:24px;border-radius:18px;box-shadow:0 8px 25px #17203318}
+header h1{margin:0 0 7px;font-size:27px}header p{margin:0;opacity:.9}
+.status-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-top:10px;background:#ffffff33;color:#fff}
+.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#fff;padding:15px;border:1px solid var(--line);border-radius:14px;margin:16px 0}
+.field{display:flex;flex-direction:column;gap:5px}.field label{font-size:12px;font-weight:bold;color:#475569}
+input,select{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 11px;background:#fff;outline:none}
+input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #2563eb18}
+button{border:0;border-radius:8px;padding:10px 14px;font-weight:bold;cursor:pointer}
+.primary{background:var(--blue);color:white}.primary:hover{background:var(--blue2)}.secondary{background:#e8eef7;color:#26364f}.green{background:var(--green);color:white}.purple{background:var(--purple);color:white}.danger{background:var(--red);color:white}
+.spacer{flex:1}
+.tabs{display:flex;gap:8px;margin-bottom:12px}.tab{background:#e2e8f0;color:#334155;cursor:pointer}.tab.active{background:var(--blue);color:#fff}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}.metric small{display:block;color:var(--muted);font-weight:bold}.metric strong{font-size:23px;display:block;margin-top:5px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:14px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:650px}
+table{border-collapse:separate;border-spacing:0;min-width:1200px;width:100%;font-size:12px}
+th,td{border-right:1px solid #e5eaf0;border-bottom:1px solid #e5eaf0;padding:6px 7px;text-align:center;white-space:nowrap}
+th{background:#f8fafc;color:#475569;position:sticky;top:0;z-index:3}
+.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:235px;font-weight:bold}
+th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:#eef4ff;z-index:2;min-width:90px;font-weight:bold}.avg{position:sticky;right:0;background:#f8fafc;z-index:2;min-width:82px;font-weight:bold}
+.day-input{width:68px;height:30px;text-align:center;border:1px solid transparent;background:transparent;border-radius:6px;padding:0 4px}
+.day-input:hover{border-color:#cbd5e1;background:#f8fafc}.day-input:focus{border-color:var(--blue);background:#fff;outline:none}
+.weekend{background:#f8fafc}.total-row td{background:#eaf2ff;font-weight:bold}.total-row .name{background:#eaf2ff}
+.hint{font-size:12px;color:var(--muted);margin:8px 0}
+.modal-bg{display:none;position:fixed;inset:0;background:#0f172a99;align-items:center;justify-content:center;padding:18px;z-index:20}
+.modal-bg.active{display:flex}
+.modal{background:white;border-radius:15px;padding:20px;width:min(600px,100%);max-height:85vh;overflow-y:auto;box-shadow:0 20px 50px #0004}.modal h2{margin-top:0}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.modal-grid .full{grid-column:1/-1}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.toast{position:fixed;right:20px;bottom:20px;background:#172033;color:white;padding:12px 16px;border-radius:9px;display:none;z-index:30}
+
+.ranking-list{list-style:none;padding:0;margin:15px 0}
+.ranking-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.ranking-item:nth-child(1){background:#fef9c3;font-weight:bold;border-radius:8px}
+.ranking-item:nth-child(2){background:#f1f5f9;border-radius:8px}
+.ranking-item:nth-child(3){background:#fef2f2;border-radius:8px}
+.badge{background:var(--blue);color:white;padding:3px 8px;border-radius:12px;font-size:11px}
+
+.resumo-box{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:20px;margin:18px 0;display:flex;flex-direction:column;gap:16px;text-align:left}
+.resumo-box div{padding-bottom:12px;border-bottom:1px dashed #cbd5e1}
+.resumo-box div:last-child{border-bottom:none;padding-bottom:0}
+.resumo-box div span{display:block;font-size:12px;color:var(--muted);font-weight:bold;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
+.resumo-box div strong{font-size:22px;color:var(--text)}
+
+@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}.app{padding:10px}.modal-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <h1>Controle de Produção Diária</h1>
+  <p>Sistema para substituir a planilha de produção, mantendo o controle por cliente, dia, total mensal e média.</p>
+  <div id="statusFirebase" class="status-badge">🟡 Conectando ao Banco de Dados...</div>
+</header>
+
+<div class="toolbar">
+  <div class="field"><label>MÊS</label><select id="mes" onchange="render()">
+    <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+    <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+    <option value="7">Julho</option><option value="8" selected>Agosto</option><option value="9">Setembro</option>
+    <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+  </select></div>
+  <div class="field"><label>ANO</label><input id="ano" type="number" value="2026" min="2020" max="2100" onchange="render()"></div>
+  <div class="field"><label>BUSCAR CLIENTE / PRODUTO</label><input id="busca" placeholder="Digite para filtrar..." oninput="render()"></div>
+  <button class="primary" onclick="abrirLancamento()">+ Novo lançamento</button>
+  <button class="secondary" onclick="adicionarCliente()">+ Cliente / Produto</button>
+  <button class="purple" onclick="abrirResumo()">📊 Ver Resumo Geral / Ranking</button>
+  <div class="spacer"></div>
+  <button class="green" onclick="baixarPDF()">Baixar PDF Completo</button>
+  <button class="secondary" onclick="exportarBackup()">Backup</button>
+  <button class="secondary" onclick="document.getElementById('arquivoBackup').click()">Restaurar</button>
+  <input id="arquivoBackup" type="file" accept=".json" hidden onchange="importarBackup(event)">
+</div>
+
+<div class="tabs">
+  <button id="tabProducao" class="tab active" onclick="mudarAba('producao')">PRODUÇÃO</button>
+  <button id="tabChip" class="tab" onclick="mudarAba('chip')">PRODUÇÃO CHIP</button>
+</div>
+
+<div class="cards">
+  <div class="metric"><small>TOTAL DO MÊS (ABA ATIVA)</small><strong id="totalMes">0</strong></div>
+  <div class="metric"><small>MÉDIA POR LANÇAMENTO</small><strong id="mediaMes">0</strong></div>
+  <div class="metric"><small>CLIENTES / PRODUTOS</small><strong id="qtdClientes">0</strong></div>
+  <div class="metric"><small>DIAS COM PRODUÇÃO</small><strong id="diasComProd">0</strong></div>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+    <div>
+      <h2 id="tituloTabela" style="margin:0">Produção</h2>
+      <div class="hint">Clientes ordenados de A a Z. Clique na célula para alterar a quantidade. Sincronizado online.</div>
+    </div>
+    <button class="secondary" onclick="limparMes()">Limpar mês atual</button>
+  </div>
+  <div class="table-wrap">
+    <table id="tabela"></table>
+  </div>
+</div>
+</div>
+
+<!-- Modal Novo Lançamento -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2>Novo lançamento</h2>
+    <div class="modal-grid">
+      <div class="field full"><label>CLIENTE / PRODUTO</label><select id="mCliente"></select></div>
+      <div class="field"><label>DIA</label><input id="mDia" type="number" min="1" max="31"></div>
+      <div class="field"><label>QUANTIDADE</label><input id="mQtd" type="number" min="0" step="0.01"></div>
+    </div>
+    <div class="actions">
+      <button class="primary" onclick="salvarLancamento()">Lançar produção</button>
+      <button class="secondary" onclick="fecharModal('modalBg')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Resumo / Ranking -->
+<div class="modal-bg" id="modalResumo">
+  <div class="modal">
+    <h2 id="resumoTitulo">📊 Resumo Geral do Mês</h2>
+    <div id="resumoTotais" class="resumo-box"></div>
+    <p style="color:var(--muted);font-size:13px;margin-top:20px;">Ranking consolidado (Produção + Produção Chip) no período selecionado.</p>
+    <ul class="ranking-list" id="listaRanking"></ul>
+    <div class="actions">
+      <button class="primary" onclick="fecharModal('modalResumo')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Salvo na nuvem!</div>
+
+<script>
+// CONFIGURAÇÃO DO FIREBASE INTEGRADAS
+const firebaseConfig = {
+  apiKey: "AIzaSyBAFZ-cV19gjmqldhwJJWeaB3P5sIiqVSc",
+  authDomain: "prodcardnet.firebaseapp.com",
+  databaseURL: "https://prodcardnet-default-rtdb.firebaseio.com",
+  projectId: "prodcardnet",
+  storageBucket: "prodcardnet.firebasestorage.app",
+  messagingSenderId: "1021411614783",
+  appId: "1:1021411614783:web:178dda85ea99c4093a988a",
+  measurementId: "G-WERMVH6EDG"
+};
+
+// Inicialização das instâncias do Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+const CLIENTES_PADRAO = {
+  "producao": [
+    "AGAFARMA", "APROFARMA", "AUTOPASS", "BEM", "CNR", "DONA BALBINA", "FESP", "GOODCARD SEM PARAR", 
+    "GOODCARD VB", "HAVAN", "HIPERLIFE (ELPHIS)", "HOTZONE", "LOJAS BESNI", "PLAYLAND", "SPTRANS", 
+    "TAIKOCARD", "TOP APS SHOW", "UNIMED BAIXA MOGIANA", "UNIMED BRUSQUE", "UNIMED CAMPINAS", 
+    "UNIMED CAMPOS", "UNIMED CENTRAL RS", "UNIMED CNU", "UNIMED COSTA VERDE", "UNIMED FLORIANÓPOLIS", 
+    "UNIMED FRUTAL", "UNIMED ITAUNA", "UNIMED MONTE ALTO", "UNIMED NORTE CAPIXABA", "UNIMED PINDAMONHANGABA", 
+    "UNIMED PORTO ALEGRE", "UNIMED SALTO DE ITU", "UNIMED SEGUROS ODONTO", "UNIMED SEGUROS SAUDE", 
+    "UNIMED SJDR", "UNIMED TUPA", "UNIMED VALE DO AÇO", "UNIMED VERTENTES DO CAPARAO", 
+    "UNIODONTO CAMPINAS", "UP POLICARD"
+  ],
+  "chip": [
+    "ABC TRANSPORTES CHIP", "AESA CHIIP", "ARAGUAINA CHIP", "ATRANSPI TRANSORTES CHIP", "ATUV CHIP", 
+    "AVIAÇÃO ATIBAIA CHIP", "AVIAÇÃO ATLANTICO CHIP", "AVIAÇÃO DOURADOS CHIP", "BENFACIL TRANSPORTES CHIP", 
+    "BENFICA TRANSPORTES CHIP", "BH AIRPORT CHIP", "BOA VISTA CHIP", "BRUBUSS CHIP", "CARTÃO LEGAL CHIP", 
+    "CARTÃO PORTO DE REGISTRO CHIP", "CCR METRO BAHIA CHIP", "COLEURB CHIP", "CONSORCIO 123 CHIP", 
+    "CONSORCIO METROPASSE CHIP", "CONSORCIO OTIMO CHIP", "GLOBALMOB CHIP", "ITAMOBI CHIP", "JÁ É", 
+    "JTP COM CARD CHIP", "MAIS MOBI CHIP", "MOBI CARTÕES CHIP", "MORIÁ TRANSPORTES CHIP", "MOVECARD CHIP", 
+    "MUNICIPIO DE MAQUINE CHIP", "NUBUS CAMPINA GRANDE CHIP", "NUBUS DNE CHIP", "NUBUS JOÃO PESSOA", 
+    "NUBUS NATAL", "PASSARO MARROM", "PETROCARD", "PEVETUR CHIP", "PLAYLAND CHIP", "RICCO TRANSPORTES CHIP", 
+    "RIOPRETRANS", "SALVADOR CARD", "SETAP CHIP", "SETUF CHIP", "SHOPPING HIGIENOPOLIS CHIP", "SOU DIADEMA CHIP", 
+    "SUMARE CHIP", "TCR TIL CHIP", "TEU VT CHIP", "TOP SHOPPING INDIGO CHIP", "TRANSCARD CHIP", 
+    "TRANSMOBI", "TRANSPORTE SUZANO CHIP", "UNIÃO GERAL DOS ESTUDANTES CHIP", "UP TECNOLOGIA CHIP", 
+    "URBS CHIP", "UTILE TRANSPORTES CHIP", "VEGAS CARDS CHIP", "VEM CARD CHIP", "VIA BRASIL SHOPPING CHIP", 
+    "VIA FEIRA", "VIAÇÃO ATIBAIA CHIP", "VIAÇÃO CANARINHO GUARAMIRIM CHIP", "VIAÇÃO CANARINHO JARAGUÁ DO SUL CHIP", 
+    "VIAÇÃO CIDADE TRES LAGOAS CHIP", "VIAÇÃO GARCIA CHIP", "VIAÇÃO ITAMARATI CHIP", "VIAÇÃO JACAREÍ VALEVIA CHIP", 
+    "VIAÇÃO LONDRINA CHIP", "VIAÇÃO PINHALZINHO CHIP", "VIAÇÃO PRAIANA CHIP", "VIAÇÃO SENHOR DO BONFIM CHIP", 
+    "VIAÇÃO UNIÃO CHIP"
+  ]
+};
+
+let abaAtiva = 'producao';
+let bancoDados = {};
+const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+// Conexão e sincronização contínua com Firebase Realtime Database
+const dbRef = database.ref('producao_dados');
+dbRef.on('value', (snapshot) => {
+  const data = snapshot.val();
+  if (data) {
+    bancoDados = data;
+  }
+  document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
+  document.getElementById('statusFirebase').style.background = '#16a34a33';
+  render();
+}, (error) => {
+  document.getElementById('statusFirebase').innerText = '🔴 Erro na conexão Firebase';
+  document.getElementById('statusFirebase').style.background = '#dc262633';
+});
+
+function salvarDados() {
+  database.ref('producao_dados').set(bancoDados);
+}
+
+function getDiasNoMes(mes, ano) {
+  return new Date(ano, mes, 0).getDate();
+}
+
+function obterDadosMesAtual() {
+  const mes = document.getElementById('mes').value;
+  const ano = document.getElementById('ano').value;
+  const chave = `${ano}_${mes}`;
+
+  if (!bancoDados[chave]) {
+    bancoDados[chave] = {
+      producao: CLIENTES_PADRAO.producao.map(nome => ({ nome, dias: new Array(31).fill(null) })),
+      chip: CLIENTES_PADRAO.chip.map(nome => ({ nome, dias: new Array(31).fill(null) }))
+    };
+    salvarDados();
+  }
+
+  if (bancoDados[chave].producao) bancoDados[chave].producao.sort((a, b) => a.nome.localeCompare(b.nome));
+  if (bancoDados[chave].chip) bancoDados[chave].chip.sort((a, b) => a.nome.localeCompare(b.nome));
+
+  return bancoDados[chave];
+}
+
+function mudarAba(aba) {
+  abaAtiva = aba;
+  document.getElementById('tabProducao').classList.toggle('active', aba === 'producao');
+  document.getElementById('tabChip').classList.toggle('active', aba === 'chip');
+  render();
+}
+
+function render() {
+  const mes = parseInt(document.getElementById('mes').value);
+  const ano = parseInt(document.getElementById('ano').value);
+  const busca = document.getElementById('busca').value.toLowerCase();
+  const totalDias = getDiasNoMes(mes, ano);
+  
+  document.getElementById('tituloTabela').innerText = `Produção — ${mesesNomes[mes - 1]}/${ano}`;
+  
+  const dadosMes = obterDadosMesAtual();
+  const lista = (dadosMes[abaAtiva] || []).filter(item => item.nome.toLowerCase().includes(busca));
+  
+  const tabela = document.getElementById('tabela');
+  let html = '<thead><tr><th class="name">Cliente / Produto</th>';
+  
+  for (let d = 1; d <= totalDias; d++) {
+    const dataObj = new Date(ano, mes - 1, d);
+    const eFimDeSemana = dataObj.getDay() === 0 || dataObj.getDay() === 6;
+    html += `<th class="${eFimDeSemana ? 'weekend' : ''}">${d}</th>`;
+  }
+  html += '<th class="sum">TOTAL</th><th class="avg">MÉDIA</th></tr></thead><tbody>';
+  
+  let somaGeral = 0;
+  let totalLancamentos = 0;
+  let clientesComProd = 0;
+  let diasComProdSet = new Set();
+  let totDia = new Array(totalDias).fill(0);
+
+  lista.forEach((item, index) => {
+    let somaCliente = 0;
+    let lancamentosCliente = 0;
+    
+    html += `<tr><td class="name">${item.nome}</td>`;
+    
+    for (let d = 0; d < totalDias; d++) {
+      const val = item.dias ? item.dias[d] : null;
+      const dataObj = new Date(ano, mes - 1, d + 1);
+      const eFimDeSemana = dataObj.getDay() === 0 || dataObj.getDay() === 6;
+      
+      if (val !== null && val !== undefined && val !== '') {
+        const nVal = parseFloat(val);
+        somaCliente += nVal;
+        totDia[d] += nVal;
+        somaGeral += nVal;
+        lancamentosCliente++;
+        totalLancamentos++;
+        diasComProdSet.add(d);
+      }
+      
+      html += `<td class="${eFimDeSemana ? 'weekend' : ''}">
+        <input class="day-input" type="number" step="any" value="${val !== null && val !== undefined ? val : ''}" 
+        onchange="atualizarValor(${index}, ${d}, this.value)">
+      </td>`;
+    }
+    
+    if (somaCliente > 0) clientesComProd++;
+    const mediaCliente = lancamentosCliente > 0 ? (somaCliente / lancamentosCliente).toFixed(1) : 0;
+    
+    html += `<td class="sum">${somaCliente.toLocaleString('pt-BR')}</td>`;
+    html += `<td class="avg">${mediaCliente}</td></tr>`;
+  });
+
+  html += '<tr class="total-row"><td class="name">TOTAL DIÁRIO</td>';
+  for (let d = 0; d < totalDias; d++) {
+    html += `<td>${totDia[d] > 0 ? totDia[d].toLocaleString('pt-BR') : '-'}</td>`;
+  }
+  const mediaGeral = totalLancamentos > 0 ? (somaGeral / totalLancamentos).toFixed(1) : 0;
+  html += `<td class="sum">${somaGeral.toLocaleString('pt-BR')}</td><td class="avg">${mediaGeral}</td></tr>`;
+  
+  html += '</tbody>';
+  tabela.innerHTML = html;
+
+  document.getElementById('totalMes').innerText = somaGeral.toLocaleString('pt-BR');
+  document.getElementById('mediaMes').innerText = mediaGeral;
+  document.getElementById('qtdClientes').innerText = lista.length;
+  document.getElementById('diasComProd').innerText = diasComProdSet.size;
+}
+
+function atualizarValor(clienteIdx, dia, valor) {
+  const busca = document.getElementById('busca').value.toLowerCase();
+  const dadosMes = obterDadosMesAtual();
+  const listaFiltrada = (dadosMes[abaAtiva] || []).filter(item => item.nome.toLowerCase().includes(busca));
+  const clienteReal = listaFiltrada[clienteIdx];
+  
+  if (clienteReal) {
+    if (!clienteReal.dias) clienteReal.dias = new Array(31).fill(null);
+    clienteReal.dias[dia] = valor === '' ? null : parseFloat(valor);
+    salvarDados();
+    exibirToast();
+  }
+}
+
+function abrirLancamento() {
+  const dadosMes = obterDadosMesAtual();
+  const select = document.getElementById('mCliente');
+  select.innerHTML = (dadosMes[abaAtiva] || []).map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+  document.getElementById('mDia').value = new Date().getDate();
+  document.getElementById('mQtd').value = '';
+  document.getElementById('modalBg').classList.add('active');
+}
+
+function fecharModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function salvarLancamento() {
+  const nomeCliente = document.getElementById('mCliente').value;
+  const dia = parseInt(document.getElementById('mDia').value) - 1;
+  const qtd = parseFloat(document.getElementById('mQtd').value);
+
+  if (isNaN(dia) || dia < 0 || dia > 30 || isNaN(qtd)) {
+    alert("Por favor, preencha os campos com valores válidos.");
+    return;
+  }
+
+  const dadosMes = obterDadosMesAtual();
+  const cliente = (dadosMes[abaAtiva] || []).find(c => c.nome === nomeCliente);
+  if (cliente) {
+    if (!cliente.dias) cliente.dias = new Array(31).fill(null);
+    cliente.dias[dia] = qtd;
+    salvarDados();
+    fecharModal('modalBg');
+    exibirToast();
+  }
+}
+
+function adicionarCliente() {
+  const nome = prompt("Nome do novo Cliente / Produto:");
+  if (nome && nome.trim() !== "") {
+    const nomeFormatado = nome.trim().toUpperCase();
+    const dadosMes = obterDadosMesAtual();
+    
+    if (dadosMes[abaAtiva].some(c => c.nome === nomeFormatado)) {
+      alert("Este cliente já está cadastrado!");
+      return;
+    }
+    
+    dadosMes[abaAtiva].push({ nome: nomeFormatado, dias: new Array(31).fill(null) });
+    dadosMes[abaAtiva].sort((a, b) => a.nome.localeCompare(b.nome));
+    
+    salvarDados();
+    exibirToast();
+  }
+}
+
+function abrirResumo() {
+  const mes = parseInt(document.getElementById('mes').value);
+  const ano = parseInt(document.getElementById('ano').value);
+  const dadosMes = obterDadosMesAtual();
+  
+  document.getElementById('resumoTitulo').innerText = `📊 Resumo Geral — ${mesesNomes[mes - 1]}/${ano}`;
+  
+  let totalProducao = 0;
+  let totalChip = 0;
+  const mapaClientes = {};
+
+  (dadosMes.producao || []).forEach(cliente => {
+    const total = (cliente.dias || []).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+    totalProducao += total;
+    if (total > 0) {
+      mapaClientes[cliente.nome] = (mapaClientes[cliente.nome] || 0) + total;
+    }
+  });
+
+  (dadosMes.chip || []).forEach(cliente => {
+    const total = (cliente.dias || []).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+    totalChip += total;
+    if (total > 0) {
+      mapaClientes[cliente.nome] = (mapaClientes[cliente.nome] || 0) + total;
+    }
+  });
+
+  const totalGeral = totalProducao + totalChip;
+
+  document.getElementById('resumoTotais').innerHTML = `
+    <div>
+      <span>Quantidade de Produção Total Geral</span>
+      <strong>${totalProducao.toLocaleString('pt-BR')} unid</strong>
+    </div>
+    <div>
+      <span>Produção Chip Total Geral</span>
+      <strong>${totalChip.toLocaleString('pt-BR')} unid</strong>
+    </div>
+    <div>
+      <span>Total Geral Acumulado</span>
+      <strong style="color:var(--blue)">${totalGeral.toLocaleString('pt-BR')} unid</strong>
+    </div>
+  `;
+
+  const ranking = Object.keys(mapaClientes).map(nome => ({
+    nome,
+    total: mapaClientes[nome]
+  })).sort((a, b) => b.total - a.total);
+
+  const listaEl = document.getElementById('listaRanking');
+  
+  if (ranking.length === 0) {
+    listaEl.innerHTML = '<li style="padding:15px;text-align:center;color:var(--muted)">Nenhum lançamento registrado neste mês.</li>';
+  } else {
+    listaEl.innerHTML = ranking.map((item, pos) => `
+      <li class="ranking-item">
+        <span><strong>#${pos + 1}</strong> ${item.nome}</span>
+        <span class="badge">${item.total.toLocaleString('pt-BR')} unid</span>
+      </li>
+    `).join('');
+  }
+
+  document.getElementById('modalResumo').classList.add('active');
+}
+
+function gerarTabelaAbaPDF(doc, dadosLista, tituloSecao, mes, ano, totalDias, startYPos) {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(37, 99, 235);
+  doc.text(tituloSecao, 14, startYPos);
+
+  const headers = ['Cliente / Produto'];
+  for (let d = 1; d <= totalDias; d++) headers.push(`${d}`);
+  headers.push('TOTAL', 'MÉDIA');
+
+  const rows = [];
+  let totDia = new Array(totalDias).fill(0);
+  let somaGeral = 0;
+  let totalLancamentos = 0;
+
+  (dadosLista || []).forEach(item => {
+    let somaCliente = 0;
+    let lancamentosCliente = 0;
+    const row = [item.nome];
+
+    for (let d = 0; d < totalDias; d++) {
+      const val = item.dias ? item.dias[d] : null;
+      if (val !== null && val !== undefined && val !== '') {
+        const nVal = parseFloat(val);
+        somaCliente += nVal;
+        totDia[d] += nVal;
+        somaGeral += nVal;
+        lancamentosCliente++;
+        totalLancamentos++;
+        row.push(nVal.toLocaleString('pt-BR'));
+      } else {
+        row.push('-');
+      }
+    }
+
+    const mediaCliente = lancamentosCliente > 0 ? (somaCliente / lancamentosCliente).toFixed(1) : '0';
+    row.push(somaCliente.toLocaleString('pt-BR'), mediaCliente);
+    rows.push(row);
+  });
+
+  const totalRow = ['TOTAL DIÁRIO'];
+  for (let d = 0; d < totalDias; d++) {
+    totalRow.push(totDia[d] > 0 ? totDia[d].toLocaleString('pt-BR') : '-');
+  }
+  const mediaGeral = totalLancamentos > 0 ? (somaGeral / totalLancamentos).toFixed(1) : '0';
+  totalRow.push(somaGeral.toLocaleString('pt-BR'), mediaGeral);
+  rows.push(totalRow);
+
+  doc.autoTable({
+    startY: startYPos + 4,
+    head: [headers],
+    body: rows,
+    theme: 'grid',
+    styles: { fontSize: 5, cellPadding: 0.8, halign: 'center' },
+    columnStyles: { 0: { halign: 'left', cellWidth: 32 } },
+    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+    didParseCell: function(data) {
+      if (data.row.index === rows.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [234, 242, 255];
+      }
+    }
+  });
+
+  return somaGeral;
+}
+
+function baixarPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  
+  const mes = parseInt(document.getElementById('mes').value);
+  const ano = parseInt(document.getElementById('ano').value);
+  const totalDias = getDiasNoMes(mes, ano);
+  const dadosMes = obterDadosMesAtual();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(23, 32, 51);
+  doc.text(`Relatório Completo de Produção — ${mesesNomes[mes - 1]}/${ano}`, 14, 12);
+
+  const totalProd = gerarTabelaAbaPDF(doc, dadosMes.producao, "1. PRODUÇÃO", mes, ano, totalDias, 18);
+
+  doc.addPage();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(23, 32, 51);
+  doc.text(`Relatório Completo de Produção — ${mesesNomes[mes - 1]}/${ano}`, 14, 12);
+
+  const totalChip = gerarTabelaAbaPDF(doc, dadosMes.chip, "2. PRODUÇÃO CHIP", mes, ano, totalDias, 18);
+
+  const finalY = doc.lastAutoTable.finalY + 8;
+  const totalGeral = totalProd + totalChip;
+
+  doc.setFontSize(10);
+  doc.setFillColor(241, 245, 249);
+  doc.rect(14, finalY, 269, 28, 'F');
+  
+  doc.setTextColor(71, 85, 105);
+  doc.text(`QUANTIDADE DE PRODUÇÃO TOTAL GERAL: ${totalProd.toLocaleString('pt-BR')} unid`, 20, finalY + 8);
+  doc.text(`PRODUÇÃO CHIP TOTAL GERAL: ${totalChip.toLocaleString('pt-BR')} unid`, 20, finalY + 16);
+  doc.setTextColor(37, 99, 235);
+  doc.text(`TOTAL GERAL ACUMULADO: ${totalGeral.toLocaleString('pt-BR')} unid`, 20, finalY + 24);
+
+  doc.save(`relatorio_completo_producao_${mesesNomes[mes-1]}_${ano}.pdf`);
+}
+
+function limparMes() {
+  if (confirm("Tem certeza que deseja limpar todos os lançamentos deste mês na aba atual?")) {
+    const dadosMes = obterDadosMesAtual();
+    (dadosMes[abaAtiva] || []).forEach(c => c.dias = new Array(31).fill(null));
+    salvarDados();
+    exibirToast();
+  }
+}
+
+function exportarBackup() {
+  const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bancoDados));
+  const anchor = document.createElement('a');
+  anchor.setAttribute("href", str);
+  anchor.setAttribute("download", `backup_producao_completo_${new Date().toISOString().slice(0,10)}.json`);
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+function importarBackup(event) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      bancoDados = JSON.parse(e.target.result);
+      salvarDados();
+      alert("Backup completo restaurado e salvo no Firebase com sucesso!");
+    } catch (err) {
+      alert("Erro ao ler arquivo de backup.");
+    }
+  };
+  reader.readAsText(event.target.files[0]);
+}
+
+function exibirToast() {
+  const toast = document.getElementById('toast');
+  toast.style.display = 'block';
+  setTimeout(() => toast.style.display = 'none', 1800);
+}
+</script>
+</body>
+</html>
