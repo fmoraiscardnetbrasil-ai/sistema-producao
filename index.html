@@ -9,15 +9,37 @@
 
 <!-- Scripts do Firebase SDK (Compatível com navegador) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <style>
 :root{--blue:#2563eb;--blue2:#1d4ed8;--bg:#f1f5f9;--card:#fff;--line:#d9e2ec;--text:#172033;--muted:#64748b;--green:#16a34a;--red:#dc2626;--purple:#7c3aed}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
-.app{max-width:1500px;margin:auto;padding:20px}
-header{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;padding:24px;border-radius:18px;box-shadow:0 8px 25px #17203318}
+
+/* ESTILOS DA TELA DE LOGIN */
+.auth-wrapper{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.auth-card{background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow:0 15px 35px #00000015;width:100%;max-width:400px;padding:30px}
+.auth-card h2{margin:0 0 8px;color:var(--text);font-size:22px;text-align:center}
+.auth-card p{margin:0 0 20px;color:var(--muted);font-size:13px;text-align:center}
+.auth-tabs{display:flex;gap:5px;background:#e2e8f0;padding:4px;border-radius:10px;margin-bottom:20px}
+.auth-tab{flex:1;background:transparent;border:0;padding:8px;border-radius:7px;font-weight:bold;color:#475569;cursor:pointer}
+.auth-tab.active{background:#fff;color:var(--blue);box-shadow:0 2px 6px #00000010}
+.auth-form{display:flex;flex-direction:column;gap:14px}
+.auth-form .field{display:flex;flex-direction:column;gap:5px}
+.auth-form input{height:44px;border:1px solid var(--line);border-radius:8px;padding:0 12px}
+.auth-form button{height:44px;font-size:14px}
+.auth-error{background:#fee2e2;color:#991b1b;padding:10px;border-radius:8px;font-size:12px;display:none;margin-top:10px;text-align:center}
+
+/* ESTILOS DO SISTEMA PRINCIPAL */
+.app{max-width:1500px;margin:auto;padding:20px;display:none} /* Oculto por padrão até logar */
+header{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;padding:24px;border-radius:18px;box-shadow:0 8px 25px #17203318;position:relative}
 header h1{margin:0 0 7px;font-size:27px}header p{margin:0;opacity:.9}
+.user-bar{position:absolute;top:20px;right:20px;display:flex;align-items:center;gap:12px;background:#ffffff22;padding:6px 14px;border-radius:30px;font-size:13px}
+.user-bar span{font-weight:bold}
+.user-bar button{background:#ffffff33;color:#fff;border:0;padding:4px 10px;border-radius:15px;font-size:11px;cursor:pointer}
+.user-bar button:hover{background:var(--red)}
 .status-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-top:10px;background:#ffffff33;color:#fff}
+
 .toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#fff;padding:15px;border:1px solid var(--line);border-radius:14px;margin:16px 0}
 .field{display:flex;flex-direction:column;gap:5px}.field label{font-size:12px;font-weight:bold;color:#475569}
 input,select{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 11px;background:#fff;outline:none}
@@ -62,11 +84,44 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
 </style>
 </head>
 <body>
-<div class="app">
+
+<!-- TELA DE LOGIN / CADASTRO -->
+<div id="authContainer" class="auth-wrapper">
+  <div class="auth-card">
+    <h2 id="authTitle">Acessar Sistema</h2>
+    <p id="authSubtitle">Digite seu e-mail e senha para entrar.</p>
+
+    <div class="auth-tabs">
+      <button id="tabAuthLogin" class="auth-tab active" onclick="alternarAbaAuth('login')">Entrar</button>
+      <button id="tabAuthCadastro" class="auth-tab" onclick="alternarAbaAuth('cadastro')">Criar Conta</button>
+    </div>
+
+    <form class="auth-form" onsubmit="executarAutenticacao(event)">
+      <div class="field">
+        <label>E-MAIL</label>
+        <input type="email" id="authEmail" required placeholder="seuemail@exemplo.com">
+      </div>
+      <div class="field">
+        <label>SENHA</label>
+        <input type="password" id="authSenha" required minlength="6" placeholder="Mínimo 6 caracteres">
+      </div>
+      <button type="submit" id="authBtnSubmit" class="primary">Entrar no Sistema</button>
+    </form>
+
+    <div id="authError" class="auth-error"></div>
+  </div>
+</div>
+
+<!-- SISTEMA PRINCIPAL -->
+<div id="appContainer" class="app">
 <header>
-  <h1>Controle de Produção Diária Cardnet </h1>
+  <h1>Controle de Produção Diária Cardnet</h1>
   <p>Sistema de produção.</p>
   <div id="statusFirebase" class="status-badge">🟡 Conectando ao Banco de Dados...</div>
+  <div class="user-bar">
+    <span id="userEmailLabel">...</span>
+    <button onclick="fazerLogout()">Sair</button>
+  </div>
 </header>
 
 <div class="toolbar">
@@ -160,6 +215,83 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
+const auth = firebase.auth();
+
+let modoAuth = 'login'; // 'login' ou 'cadastro'
+
+function alternarAbaAuth(modo) {
+  modoAuth = modo;
+  const tabLogin = document.getElementById('tabAuthLogin');
+  const tabCad = document.getElementById('tabAuthCadastro');
+  const title = document.getElementById('authTitle');
+  const subtitle = document.getElementById('authSubtitle');
+  const btn = document.getElementById('authBtnSubmit');
+  const errorDiv = document.getElementById('authError');
+  errorDiv.style.display = 'none';
+
+  if (modo === 'login') {
+    tabLogin.classList.add('active');
+    tabCad.classList.remove('active');
+    title.innerText = 'Acessar Sistema';
+    subtitle.innerText = 'Digite seu e-mail e senha para entrar.';
+    btn.innerText = 'Entrar no Sistema';
+  } else {
+    tabCad.classList.add('active');
+    tabLogin.classList.remove('active');
+    title.innerText = 'Criar uma Conta';
+    subtitle.innerText = 'Cadastre seu e-mail para ter acesso.';
+    btn.innerText = 'Cadastrar e Entrar';
+  }
+}
+
+async function executarAutenticacao(event) {
+  event.preventDefault();
+  const email = document.getElementById('authEmail').value;
+  const senha = document.getElementById('authSenha').value;
+  const errorDiv = document.getElementById('authError');
+  errorDiv.style.display = 'none';
+
+  try {
+    if (modoAuth === 'login') {
+      await auth.signInWithEmailAndPassword(email, senha);
+    } else {
+      await auth.createUserWithEmailAndPassword(email, senha);
+    }
+  } catch (err) {
+    errorDiv.style.display = 'block';
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      errorDiv.innerText = 'E-mail ou senha incorretos.';
+    } else if (err.code === 'auth/email-already-in-use') {
+      errorDiv.innerText = 'Este e-mail já está cadastrado no sistema.';
+    } else if (err.code === 'auth/weak-password') {
+      errorDiv.innerText = 'A senha deve ter pelo menos 6 caracteres.';
+    } else {
+      errorDiv.innerText = 'Erro ao autenticar: ' + err.message;
+    }
+  }
+}
+
+function fazerLogout() {
+  auth.signOut();
+}
+
+// MONITORAR ESTADO DE AUTENTICAÇÃO
+auth.onAuthStateChanged((user) => {
+  const authContainer = document.getElementById('authContainer');
+  const appContainer = document.getElementById('appContainer');
+
+  if (user) {
+    // USUÁRIO LOGADO: Mostra o sistema
+    authContainer.style.display = 'none';
+    appContainer.style.display = 'block';
+    document.getElementById('userEmailLabel').innerText = user.email;
+    iniciarEscutaFirebase();
+  } else {
+    // NENHUM USUÁRIO: Mostra tela de login
+    authContainer.style.display = 'flex';
+    appContainer.style.display = 'none';
+  }
+});
 
 const CLIENTES_PADRAO = {
   "producao": [
@@ -194,27 +326,27 @@ const CLIENTES_PADRAO = {
 
 let abaAtiva = 'producao';
 let bancoDados = {};
-let usuarioEditando = false; // Bloqueia redesenho enquanto o usuário mexe na tabela
+let usuarioEditando = false;
 const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// Conexão e sincronização Firebase
-const dbRef = database.ref('producao_dados');
-dbRef.on('value', (snapshot) => {
-  const data = snapshot.val();
-  if (data) {
-    bancoDados = data;
-  }
-  document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
-  document.getElementById('statusFirebase').style.background = '#16a34a33';
-  
-  // Só redesenha a tabela inteira se o usuário NÃO estiver com o cursor em nenhuma célula
-  if (!usuarioEditando) {
-    render(false);
-  }
-}, (error) => {
-  document.getElementById('statusFirebase').innerText = '🔴 Erro na conexão Firebase';
-  document.getElementById('statusFirebase').style.background = '#dc262633';
-});
+function iniciarEscutaFirebase() {
+  const dbRef = database.ref('producao_dados');
+  dbRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      bancoDados = data;
+    }
+    document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
+    document.getElementById('statusFirebase').style.background = '#16a34a33';
+    
+    if (!usuarioEditando) {
+      render(false);
+    }
+  }, (error) => {
+    document.getElementById('statusFirebase').innerText = '🔴 Erro na conexão Firebase';
+    document.getElementById('statusFirebase').style.background = '#dc262633';
+  });
+}
 
 function salvarDados() {
   database.ref('producao_dados').set(bancoDados);
@@ -340,7 +472,6 @@ function tratarTeclado(event, r, c, element) {
     event.preventDefault();
     atualizarValor(r, c, element.value);
     
-    // Pula para o próximo dia na mesma linha
     const proximo = document.querySelector(`input[data-row="${r}"][data-col="${c + 1}"]`);
     if (proximo) {
       proximo.focus();
@@ -370,14 +501,12 @@ function atualizarValor(clienteIdx, dia, valor) {
     }
     clienteReal.dias[dia] = valor === '' ? null : parseFloat(valor);
     
-    // Salva no Firebase sem redesenhar o HTML da tabela
     salvarDados();
     recalcularTotaisSemRedesenhar();
     exibirToast();
   }
 }
 
-// Recalcula totais alterando apenas os elementos de texto das somas
 function recalcularTotaisSemRedesenhar() {
   const mes = parseInt(document.getElementById('mes').value);
   const ano = parseInt(document.getElementById('ano').value);
