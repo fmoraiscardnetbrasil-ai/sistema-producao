@@ -104,7 +104,7 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
     <div>
       <h2 id="tituloTabela" style="margin:0">Produção</h2>
-      <div class="hint">Digite o valor e pressione <strong>ENTER</strong> para confirmar o lançamento no dia. Use as setas (← →) para navegar.</div>
+      <div class="hint">Digite o valor e pressione <strong>ENTER</strong> para confirmar e ir para o próximo dia. Use (← →) para navegar.</div>
     </div>
     <button class="secondary" onclick="limparMes()">Limpar mês atual</button>
   </div>
@@ -195,6 +195,7 @@ const CLIENTES_PADRAO = {
 
 let abaAtiva = 'producao';
 let bancoDados = {};
+let editandoElemento = false;
 const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 // Conexão e sincronização contínua com Firebase Realtime Database
@@ -206,7 +207,11 @@ dbRef.on('value', (snapshot) => {
   }
   document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
   document.getElementById('statusFirebase').style.background = '#16a34a33';
-  render();
+  
+  // Evita reconstruir a tela inteira enquanto o usuário digita
+  if (!editandoElemento) {
+    render();
+  }
 }, (error) => {
   document.getElementById('statusFirebase').innerText = '🔴 Erro na conexão Firebase';
   document.getElementById('statusFirebase').style.background = '#dc262633';
@@ -277,7 +282,7 @@ function render() {
     let somaCliente = 0;
     let lancamentosCliente = 0;
     
-    html += `<tr><td class="name">${item.nome}</td>`;
+    html += `<tr id="row-${index}"><td class="name">${item.nome}</td>`;
     const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
     
     for (let d = 0; d < totalDias; d++) {
@@ -298,7 +303,8 @@ function render() {
       html += `<td class="${eFimDeSemana ? 'weekend' : ''}">
         <input class="day-input" type="number" step="any" 
         data-row="${index}" data-col="${d}"
-        onfocus="this.select()"
+        onfocus="editandoElemento=true; this.select()"
+        onblur="editandoElemento=false"
         onkeydown="tratarTeclado(event, ${index}, ${d}, this)"
         value="${val !== null && val !== undefined ? val : ''}" 
         onchange="atualizarValor(${index}, ${d}, this.value)">
@@ -308,16 +314,16 @@ function render() {
     if (somaCliente > 0) clientesComProd++;
     const mediaCliente = lancamentosCliente > 0 ? (somaCliente / lancamentosCliente).toFixed(1) : 0;
     
-    html += `<td class="sum">${somaCliente.toLocaleString('pt-BR')}</td>`;
-    html += `<td class="avg">${mediaCliente}</td></tr>`;
+    html += `<td class="sum" id="sum-${index}">${somaCliente.toLocaleString('pt-BR')}</td>`;
+    html += `<td class="avg" id="avg-${index}">${mediaCliente}</td></tr>`;
   });
 
   html += '<tr class="total-row"><td class="name">TOTAL DIÁRIO</td>';
   for (let d = 0; d < totalDias; d++) {
-    html += `<td>${totDia[d] > 0 ? totDia[d].toLocaleString('pt-BR') : '-'}</td>`;
+    html += `<td id="tot-col-${d}">${totDia[d] > 0 ? totDia[d].toLocaleString('pt-BR') : '-'}</td>`;
   }
   const mediaGeral = totalLancamentos > 0 ? (somaGeral / totalLancamentos).toFixed(1) : 0;
-  html += `<td class="sum">${somaGeral.toLocaleString('pt-BR')}</td><td class="avg">${mediaGeral}</td></tr>`;
+  html += `<td class="sum" id="tot-sum-geral">${somaGeral.toLocaleString('pt-BR')}</td><td class="avg" id="tot-avg-geral">${mediaGeral}</td></tr>`;
   
   html += '</tbody>';
   tabela.innerHTML = html;
@@ -332,7 +338,14 @@ function tratarTeclado(event, r, c, element) {
   if (event.key === 'Enter') {
     event.preventDefault();
     atualizarValor(r, c, element.value);
-    element.blur(); // Tira o foco para garantir o salvamento sem acidentes
+    
+    // Pula para o próximo dia na mesma linha
+    const proximo = document.querySelector(`input[data-row="${r}"][data-col="${c + 1}"]`);
+    if (proximo) {
+      proximo.focus();
+    } else {
+      element.blur();
+    }
   } else if (event.key === 'ArrowRight') {
     event.preventDefault();
     const proximo = document.querySelector(`input[data-row="${r}"][data-col="${c + 1}"]`);
@@ -355,9 +368,69 @@ function atualizarValor(clienteIdx, dia, valor) {
       clienteReal.dias = new Array(31).fill(null);
     }
     clienteReal.dias[dia] = valor === '' ? null : parseFloat(valor);
+    
+    // Salva no banco de dados sem regerar a tabela do zero
     salvarDados();
+    recalcularTotaisSemRedesenhar();
     exibirToast();
   }
+}
+
+// Atualiza apenas os números dos totais sem recriar os campos de texto da tela
+function recalcularTotaisSemRedesenhar() {
+  const mes = parseInt(document.getElementById('mes').value);
+  const ano = parseInt(document.getElementById('ano').value);
+  const busca = document.getElementById('busca').value.toLowerCase();
+  const totalDias = getDiasNoMes(mes, ano);
+  
+  const dadosMes = obterDadosMesAtual();
+  const lista = (dadosMes[abaAtiva] || []).filter(item => item.nome.toLowerCase().includes(busca));
+  
+  let somaGeral = 0;
+  let totalLancamentos = 0;
+  let diasComProdSet = new Set();
+  let totDia = new Array(totalDias).fill(0);
+
+  lista.forEach((item, index) => {
+    let somaCliente = 0;
+    let lancamentosCliente = 0;
+    const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
+    
+    for (let d = 0; d < totalDias; d++) {
+      const val = arrayDias[d];
+      if (val !== null && val !== undefined && val !== '') {
+        const nVal = parseFloat(val);
+        somaCliente += nVal;
+        totDia[d] += nVal;
+        somaGeral += nVal;
+        lancamentosCliente++;
+        totalLancamentos++;
+        diasComProdSet.add(d);
+      }
+    }
+    
+    const mediaCliente = lancamentosCliente > 0 ? (somaCliente / lancamentosCliente).toFixed(1) : 0;
+    const elSum = document.getElementById(`sum-${index}`);
+    const elAvg = document.getElementById(`avg-${index}`);
+    if (elSum) elSum.innerText = somaCliente.toLocaleString('pt-BR');
+    if (elAvg) elAvg.innerText = mediaCliente;
+  });
+
+  for (let d = 0; d < totalDias; d++) {
+    const elTotCol = document.getElementById(`tot-col-${d}`);
+    if (elTotCol) elTotCol.innerText = totDia[d] > 0 ? totDia[d].toLocaleString('pt-BR') : '-';
+  }
+
+  const mediaGeral = totalLancamentos > 0 ? (somaGeral / totalLancamentos).toFixed(1) : 0;
+  
+  const elTotSum = document.getElementById('tot-sum-geral');
+  const elTotAvg = document.getElementById('tot-avg-geral');
+  if (elTotSum) elTotSum.innerText = somaGeral.toLocaleString('pt-BR');
+  if (elTotAvg) elTotAvg.innerText = mediaGeral;
+
+  document.getElementById('totalMes').innerText = somaGeral.toLocaleString('pt-BR');
+  document.getElementById('mediaMes').innerText = mediaGeral;
+  document.getElementById('diasComProd').innerText = diasComProdSet.size;
 }
 
 function abrirLancamento() {
@@ -399,6 +472,7 @@ function salvarLancamento() {
     cliente.dias[diaIndex] = qtd;
     salvarDados();
     fecharModal('modalBg');
+    render();
     exibirToast();
   }
 }
@@ -418,6 +492,7 @@ function adicionarCliente() {
     dadosMes[abaAtiva].sort((a, b) => a.nome.localeCompare(b.nome));
     
     salvarDados();
+    render();
     exibirToast();
   }
 }
@@ -610,6 +685,7 @@ function limparMes() {
     const dadosMes = obterDadosMesAtual();
     (dadosMes[abaAtiva] || []).forEach(c => c.dias = new Array(31).fill(null));
     salvarDados();
+    render();
     exibirToast();
   }
 }
@@ -630,6 +706,7 @@ function importarBackup(event) {
     try {
       bancoDados = JSON.parse(e.target.result);
       salvarDados();
+      render();
       alert("Backup completo restaurado e salvo no Firebase com sucesso!");
     } catch (err) {
       alert("Erro ao ler arquivo de backup.");
