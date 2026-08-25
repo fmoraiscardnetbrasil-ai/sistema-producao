@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
-<!-- Scripts do Firebase SDK (Compatível com navegador) -->
+<!-- Scripts do Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -31,7 +31,7 @@
 .auth-error{background:#fee2e2;color:#991b1b;padding:10px;border-radius:8px;font-size:12px;display:none;margin-top:10px;text-align:center}
 
 /* ESTILOS DO SISTEMA PRINCIPAL */
-.app{max-width:1500px;margin:auto;padding:20px;display:none} /* Oculto por padrão até logar */
+.app{max-width:1500px;margin:auto;padding:20px;display:none}
 header{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;padding:24px;border-radius:18px;box-shadow:0 8px 25px #17203318;position:relative}
 header h1{margin:0 0 7px;font-size:27px}header p{margin:0;opacity:.9}
 .user-bar{position:absolute;top:20px;right:20px;display:flex;align-items:center;gap:12px;background:#ffffff22;padding:6px 14px;border-radius:30px;font-size:13px}
@@ -54,8 +54,14 @@ button{border:0;border-radius:8px;padding:10px 14px;font-weight:bold;cursor:poin
 table{border-collapse:separate;border-spacing:0;min-width:1200px;width:100%;font-size:12px}
 th,td{border-right:1px solid #e5eaf0;border-bottom:1px solid #e5eaf0;padding:6px 7px;text-align:center;white-space:nowrap}
 th{background:#f8fafc;color:#475569;position:sticky;top:0;z-index:3}
-.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:235px;font-weight:bold}
-th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:#eef4ff;z-index:2;min-width:90px;font-weight:bold}.avg{position:sticky;right:0;background:#f8fafc;z-index:2;min-width:82px;font-weight:bold}
+
+/* ESTILOS DA COLUNA DE NOME E DELETAR */
+.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:250px;font-weight:bold;display:flex;align-items:center;justify-content:space-between;gap:8px}
+th.name{z-index:5;background:#f8fafc;display:table-cell}
+.btn-delete{background:transparent;border:0;color:#94a3b8;font-size:14px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
+.btn-delete:hover{background:#fee2e2;color:var(--red)}
+
+.sum{position:sticky;right:82px;background:#eef4ff;z-index:2;min-width:90px;font-weight:bold}.avg{position:sticky;right:0;background:#f8fafc;z-index:2;min-width:82px;font-weight:bold}
 .day-input{width:68px;height:30px;text-align:center;border:1px solid transparent;background:transparent;border-radius:6px;padding:0 4px}
 .day-input:hover{border-color:#cbd5e1;background:#f8fafc}.day-input:focus{border-color:var(--blue);background:#fff;outline:none}
 .weekend{background:#f8fafc}.total-row td{background:#eaf2ff;font-weight:bold}.total-row .name{background:#eaf2ff}
@@ -65,7 +71,7 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
 .modal{background:white;border-radius:15px;padding:20px;width:min(600px,100%);max-height:85vh;overflow-y:auto;box-shadow:0 20px 50px #0004}.modal h2{margin-top:0}
 .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.modal-grid .full{grid-column:1/-1}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.toast{position:fixed;right:20px;bottom:20px;background:#172033;color:white;padding:12px 16px;border-radius:9px;display:none;z-index:30}
+.toast{position:fixed;right:20px;bottom:20px;background:#172033;color:white;padding:12px 16px;border-radius:99px;display:none;z-index:30}
 
 .ranking-list{list-style:none;padding:0;margin:15px 0}
 .ranking-item{display:flex;justify-space:between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
@@ -217,7 +223,7 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const auth = firebase.auth();
 
-let modoAuth = 'login'; // 'login' ou 'cadastro'
+let modoAuth = 'login';
 
 function alternarAbaAuth(modo) {
   modoAuth = modo;
@@ -281,13 +287,11 @@ auth.onAuthStateChanged((user) => {
   const appContainer = document.getElementById('appContainer');
 
   if (user) {
-    // USUÁRIO LOGADO: Mostra o sistema
     authContainer.style.display = 'none';
     appContainer.style.display = 'block';
     document.getElementById('userEmailLabel').innerText = user.email;
     iniciarEscutaFirebase();
   } else {
-    // NENHUM USUÁRIO: Mostra tela de login
     authContainer.style.display = 'flex';
     appContainer.style.display = 'none';
   }
@@ -415,7 +419,13 @@ function render(forcar = false) {
     let somaCliente = 0;
     let lancamentosCliente = 0;
     
-    html += `<tr id="row-${index}"><td class="name">${item.nome}</td>`;
+    // NOME DO CLIENTE + BOTÃO DE DELETAR
+    html += `<tr id="row-${index}">
+      <td class="name">
+        <span>${item.nome}</span>
+        <button class="btn-delete" title="Excluir este cliente" onclick="deletarCliente('${item.nome.replace(/'/g, "\\'")}')">🗑️</button>
+      </td>`;
+      
     const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
     
     for (let d = 0; d < totalDias; d++) {
@@ -465,6 +475,17 @@ function render(forcar = false) {
   document.getElementById('mediaMes').innerText = mediaGeral;
   document.getElementById('qtdClientes').innerText = lista.length;
   document.getElementById('diasComProd').innerText = diasComProdSet.size;
+}
+
+function deletarCliente(nomeCliente) {
+  if (confirm(`Tem certeza que deseja apagar o cliente "${nomeCliente}" deste mês?`)) {
+    const dadosMes = obterDadosMesAtual();
+    dadosMes[abaAtiva] = (dadosMes[abaAtiva] || []).filter(c => c.nome !== nomeCliente);
+    
+    salvarDados();
+    render(true);
+    exibirToast();
+  }
 }
 
 function tratarTeclado(event, r, c, element) {
