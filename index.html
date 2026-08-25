@@ -104,7 +104,7 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
     <div>
       <h2 id="tituloTabela" style="margin:0">Produção</h2>
-      <div class="hint">Clientes ordenados de A a Z. Clique na célula para alterar a quantidade. Sincronizado online.</div>
+      <div class="hint">Clientes ordenados de A a Z. Use Tab para navegar sequencialmente entre os dias.</div>
     </div>
     <button class="secondary" onclick="limparMes()">Limpar mês atual</button>
   </div>
@@ -273,6 +273,8 @@ function render() {
   let diasComProdSet = new Set();
   let totDia = new Array(totalDias).fill(0);
 
+  let tabindexGlobal = 1; // Contador para a ordem exata do Tab
+
   lista.forEach((item, index) => {
     let somaCliente = 0;
     let lancamentosCliente = 0;
@@ -296,7 +298,10 @@ function render() {
       }
       
       html += `<td class="${eFimDeSemana ? 'weekend' : ''}">
-        <input class="day-input" type="number" step="any" value="${val !== null && val !== undefined ? val : ''}" 
+        <input class="day-input" type="number" step="any" 
+        tabindex="${tabindexGlobal++}" 
+        onfocus="this.select()"
+        value="${val !== null && val !== undefined ? val : ''}" 
         onchange="atualizarValor(${index}, ${d}, this.value)">
       </td>`;
     }
