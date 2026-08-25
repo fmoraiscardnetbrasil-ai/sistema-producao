@@ -139,13 +139,13 @@ th.name{z-index:5;background:#f8fafc;display:table-cell}
   </select></div>
   <div class="field"><label>ANO</label><input id="ano" type="number" value="2026" min="2020" max="2100" onchange="render(true)"></div>
   <div class="field"><label>BUSCAR CLIENTE / PRODUTO</label><input id="busca" placeholder="Digite para filtrar..." oninput="render(true)"></div>
-  <button class="primary" onclick="abrirLancamento()">+ Novo lançamento</button>
-  <button class="secondary" onclick="adicionarCliente()">+ Cliente / Produto</button>
+  <button id="btnNovoLancamento" class="primary" onclick="abrirLancamento()">+ Novo lançamento</button>
+  <button id="btnNovoCliente" class="secondary" onclick="adicionarCliente()">+ Cliente / Produto</button>
   <button class="purple" onclick="abrirResumo()">📊 Ver Resumo Geral / Ranking</button>
   <div class="spacer"></div>
   <button class="green" onclick="baixarPDF()">Baixar PDF Completo</button>
-  <button class="secondary" onclick="exportarBackup()">Backup</button>
-  <button class="secondary" onclick="document.getElementById('arquivoBackup').click()">Restaurar</button>
+  <button id="btnBackup" class="secondary" onclick="exportarBackup()">Backup</button>
+  <button id="btnRestaurar" class="secondary" onclick="document.getElementById('arquivoBackup').click()">Restaurar</button>
   <input id="arquivoBackup" type="file" accept=".json" hidden onchange="importarBackup(event)">
 </div>
 
@@ -167,7 +167,7 @@ th.name{z-index:5;background:#f8fafc;display:table-cell}
       <h2 id="tituloTabela" style="margin:0">Produção</h2>
       <div class="hint">Clique em qualquer dia, digite a quantidade e pressione <strong>ENTER</strong> ou mude com o mouse.</div>
     </div>
-    <button class="secondary" onclick="limparMes()">Limpar mês atual</button>
+    <button id="btnLimparMes" class="secondary" onclick="limparMes()">Limpar mês atual</button>
   </div>
   <div class="table-wrap">
     <table id="tabela"></table>
@@ -224,6 +224,10 @@ const database = firebase.database();
 const auth = firebase.auth();
 
 let modoAuth = 'login';
+let ehAdmin = false;
+
+// INSIRA O SEU E-MAIL CADASTRADO EXACTAMENTE AQUI
+const EMAIL_ADMIN = "fmoraiscardnetbrasil@gmail.com"; 
 
 function alternarAbaAuth(modo) {
   modoAuth = modo;
@@ -281,7 +285,7 @@ function fazerLogout() {
   auth.signOut();
 }
 
-// MONITORAR ESTADO DE AUTENTICAÇÃO
+// MONITORAR ESTADO DE AUTENTICAÇÃO E APLICAR TRAVA DE E-MAIL
 auth.onAuthStateChanged((user) => {
   const authContainer = document.getElementById('authContainer');
   const appContainer = document.getElementById('appContainer');
@@ -290,12 +294,31 @@ auth.onAuthStateChanged((user) => {
     authContainer.style.display = 'none';
     appContainer.style.display = 'block';
     document.getElementById('userEmailLabel').innerText = user.email;
+
+    // VERIFICA SE O USUÁRIO LOGADO É O ADMIN
+    ehAdmin = (user.email.toLowerCase() === EMAIL_ADMIN.toLowerCase());
+
     iniciarEscutaFirebase();
   } else {
     authContainer.style.display = 'flex';
     appContainer.style.display = 'none';
   }
 });
+
+function aplicarControlePermissao() {
+  const idsBotoesEsconder = ['btnNovoLancamento', 'btnNovoCliente', 'btnLimparMes', 'btnBackup', 'btnRestaurar'];
+  
+  idsBotoesEsconder.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.style.display = ehAdmin ? 'inline-block' : 'none';
+  });
+
+  const botoesLixeira = document.querySelectorAll('.btn-delete');
+  botoesLixeira.forEach(btn => btn.style.display = ehAdmin ? 'inline-block' : 'none');
+
+  const inputs = document.querySelectorAll('.day-input');
+  inputs.forEach(input => input.disabled = !ehAdmin);
+}
 
 const CLIENTES_PADRAO = {
   "producao": [
@@ -333,7 +356,6 @@ let bancoDados = {};
 let usuarioEditando = false;
 const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// CONVERTE QUALQUER FORMATO DE DADOS PARA OBJETO INDEXADO { d1: val, d13: val }
 function objetoDiasNormalizado(diasEntrada) {
   const obj = {};
   if (!diasEntrada) return obj;
@@ -362,7 +384,6 @@ function iniciarEscutaFirebase() {
     const data = snapshot.val();
     if (data) {
       bancoDados = data;
-      // Garante a normalização de objetos de dias
       Object.keys(bancoDados).forEach(chave => {
         ['producao', 'chip'].forEach(cat => {
           if (bancoDados[chave][cat]) {
@@ -386,6 +407,7 @@ function iniciarEscutaFirebase() {
 }
 
 function salvarDados() {
+  if (!ehAdmin) return;
   database.ref('producao_dados').set(bancoDados);
 }
 
@@ -403,7 +425,7 @@ function obterDadosMesAtual() {
       producao: CLIENTES_PADRAO.producao.map(nome => ({ nome, diasObj: {} })),
       chip: CLIENTES_PADRAO.chip.map(nome => ({ nome, diasObj: {} }))
     };
-    salvarDados();
+    if (ehAdmin) salvarDados();
   }
 
   ['producao', 'chip'].forEach(cat => {
@@ -513,9 +535,12 @@ function render(forcar = false) {
   document.getElementById('mediaMes').innerText = mediaGeral;
   document.getElementById('qtdClientes').innerText = lista.length;
   document.getElementById('diasComProd').innerText = diasComProdSet.size;
+
+  aplicarControlePermissao();
 }
 
 function deletarCliente(nomeCliente) {
+  if (!ehAdmin) return;
   if (confirm(`Tem certeza que deseja apagar o cliente "${nomeCliente}" deste mês?`)) {
     const dadosMes = obterDadosMesAtual();
     dadosMes[abaAtiva] = (dadosMes[abaAtiva] || []).filter(c => c.nome !== nomeCliente);
@@ -549,6 +574,7 @@ function tratarTeclado(event, r, d, element) {
 }
 
 function atualizarValor(clienteIdx, dia, valor) {
+  if (!ehAdmin) return;
   const busca = document.getElementById('busca').value.toLowerCase();
   const dadosMes = obterDadosMesAtual();
   const listaFiltrada = (dadosMes[abaAtiva] || []).filter(item => item.nome.toLowerCase().includes(busca));
@@ -626,6 +652,7 @@ function recalcularTotaisSemRedesenhar() {
 }
 
 function abrirLancamento() {
+  if (!ehAdmin) return;
   const dadosMes = obterDadosMesAtual();
   const select = document.getElementById('mCliente');
   select.innerHTML = (dadosMes[abaAtiva] || []).map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
@@ -639,6 +666,7 @@ function fecharModal(id) {
 }
 
 function salvarLancamento() {
+  if (!ehAdmin) return;
   const nomeCliente = document.getElementById('mCliente').value;
   const diaDigitado = parseInt(document.getElementById('mDia').value, 10);
   const qtd = parseFloat(document.getElementById('mQtd').value);
@@ -666,6 +694,7 @@ function salvarLancamento() {
 }
 
 function adicionarCliente() {
+  if (!ehAdmin) return;
   const nome = prompt("Nome do novo Cliente / Produto:");
   if (nome && nome.trim() !== "") {
     const nomeFormatado = nome.trim().toUpperCase();
@@ -869,6 +898,7 @@ function baixarPDF() {
 }
 
 function limparMes() {
+  if (!ehAdmin) return;
   if (confirm("Tem certeza que deseja limpar todos os lançamentos deste mês na aba atual?")) {
     const dadosMes = obterDadosMesAtual();
     (dadosMes[abaAtiva] || []).forEach(c => c.diasObj = {});
@@ -879,6 +909,7 @@ function limparMes() {
 }
 
 function exportarBackup() {
+  if (!ehAdmin) return;
   const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bancoDados));
   const anchor = document.createElement('a');
   anchor.setAttribute("href", str);
@@ -889,6 +920,7 @@ function exportarBackup() {
 }
 
 function importarBackup(event) {
+  if (!ehAdmin) return;
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
