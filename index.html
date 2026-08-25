@@ -46,7 +46,7 @@ th.name{z-index:5;background:#f8fafc}.sum{position:sticky;right:82px;background:
 .toast{position:fixed;right:20px;bottom:20px;background:#172033;color:white;padding:12px 16px;border-radius:9px;display:none;z-index:30}
 
 .ranking-list{list-style:none;padding:0;margin:15px 0}
-.ranking-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.ranking-item{display:flex;justify-space:between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
 .ranking-item:nth-child(1){background:#fef9c3;font-weight:bold;border-radius:8px}
 .ranking-item:nth-child(2){background:#f1f5f9;border-radius:8px}
 .ranking-item:nth-child(3){background:#fef2f2;border-radius:8px}
@@ -355,21 +355,28 @@ function fecharModal(id) {
 
 function salvarLancamento() {
   const nomeCliente = document.getElementById('mCliente').value;
-  const dia = parseInt(document.getElementById('mDia').value) - 1;
+  const diaDigitado = parseInt(document.getElementById('mDia').value, 10);
   const qtd = parseFloat(document.getElementById('mQtd').value);
 
-  if (isNaN(dia) || dia < 0 || dia > 30 || isNaN(qtd)) {
-    alert("Por favor, preencha os campos com valores válidos.");
+  const mes = parseInt(document.getElementById('mes').value, 10);
+  const ano = parseInt(document.getElementById('ano').value, 10);
+  const totalDiasMes = getDiasNoMes(mes, ano);
+
+  if (isNaN(diaDigitado) || diaDigitado < 1 || diaDigitado > totalDiasMes || isNaN(qtd)) {
+    alert(`Por favor, insira um dia válido de 1 a ${totalDiasMes} e uma quantidade numérica.`);
     return;
   }
 
+  const diaIndex = diaDigitado - 1;
+
   const dadosMes = obterDadosMesAtual();
   const cliente = (dadosMes[abaAtiva] || []).find(c => c.nome === nomeCliente);
+  
   if (cliente) {
     if (!cliente.dias || !Array.isArray(cliente.dias)) {
       cliente.dias = new Array(31).fill(null);
     }
-    cliente.dias[dia] = qtd;
+    cliente.dias[diaIndex] = qtd;
     salvarDados();
     fecharModal('modalBg');
     exibirToast();
@@ -402,8 +409,8 @@ function somarDias(dias) {
 }
 
 function abrirResumo() {
-  const mes = parseInt(document.getElementById('mes').value);
-  const ano = parseInt(document.getElementById('ano').value);
+  const mes = parseInt(document.getElementById('mes').value, 10);
+  const ano = parseInt(document.getElementById('ano').value, 10);
   const dadosMes = obterDadosMesAtual();
   
   document.getElementById('resumoTitulo').innerText = `📊 Resumo Geral — ${mesesNomes[mes - 1]}/${ano}`;
@@ -541,8 +548,8 @@ function baixarPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   
-  const mes = parseInt(document.getElementById('mes').value);
-  const ano = parseInt(document.getElementById('ano').value);
+  const mes = parseInt(document.getElementById('mes').value, 10);
+  const ano = parseInt(document.getElementById('ano').value, 10);
   const totalDias = getDiasNoMes(mes, ano);
   const dadosMes = obterDadosMesAtual();
 
