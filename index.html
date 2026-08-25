@@ -227,7 +227,10 @@ let modoAuth = 'login';
 let ehAdmin = false;
 
 // INSIRA O SEU E-MAIL CADASTRADO EXACTAMENTE AQUI
-const EMAIL_ADMIN = "fmoraiscardnetbrasil@gmail.com"; 
+const EMAILS_ADMIN = [
+  "fmoraiscardnetbrasil@gmail.com",
+  "acassiano@cardnetbrasil.com.br" // <-- Coloque o segundo e-mail aqui
+];
 
 function alternarAbaAuth(modo) {
   modoAuth = modo;
@@ -296,7 +299,7 @@ auth.onAuthStateChanged((user) => {
     document.getElementById('userEmailLabel').innerText = user.email;
 
     // VERIFICA SE O USUÁRIO LOGADO É O ADMIN
-    ehAdmin = (user.email.toLowerCase() === EMAIL_ADMIN.toLowerCase());
+    ehAdmin = EMAILS_ADMIN.some(email => email.toLowerCase() === user.email.toLowerCase());
 
     iniciarEscutaFirebase();
   } else {
