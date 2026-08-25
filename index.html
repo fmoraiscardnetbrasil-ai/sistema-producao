@@ -278,9 +278,10 @@ function render() {
     let lancamentosCliente = 0;
     
     html += `<tr><td class="name">${item.nome}</td>`;
+    const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
     
     for (let d = 0; d < totalDias; d++) {
-      const val = item.dias ? item.dias[d] : null;
+      const val = arrayDias[d];
       const dataObj = new Date(ano, mes - 1, d + 1);
       const eFimDeSemana = dataObj.getDay() === 0 || dataObj.getDay() === 6;
       
@@ -330,7 +331,9 @@ function atualizarValor(clienteIdx, dia, valor) {
   const clienteReal = listaFiltrada[clienteIdx];
   
   if (clienteReal) {
-    if (!clienteReal.dias) clienteReal.dias = new Array(31).fill(null);
+    if (!clienteReal.dias || !Array.isArray(clienteReal.dias)) {
+      clienteReal.dias = new Array(31).fill(null);
+    }
     clienteReal.dias[dia] = valor === '' ? null : parseFloat(valor);
     salvarDados();
     exibirToast();
@@ -363,7 +366,9 @@ function salvarLancamento() {
   const dadosMes = obterDadosMesAtual();
   const cliente = (dadosMes[abaAtiva] || []).find(c => c.nome === nomeCliente);
   if (cliente) {
-    if (!cliente.dias) cliente.dias = new Array(31).fill(null);
+    if (!cliente.dias || !Array.isArray(cliente.dias)) {
+      cliente.dias = new Array(31).fill(null);
+    }
     cliente.dias[dia] = qtd;
     salvarDados();
     fecharModal('modalBg');
@@ -390,6 +395,12 @@ function adicionarCliente() {
   }
 }
 
+function somarDias(dias) {
+  if (!dias) return 0;
+  const lista = Array.isArray(dias) ? dias : Object.values(dias);
+  return lista.reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+}
+
 function abrirResumo() {
   const mes = parseInt(document.getElementById('mes').value);
   const ano = parseInt(document.getElementById('ano').value);
@@ -402,7 +413,7 @@ function abrirResumo() {
   const mapaClientes = {};
 
   (dadosMes.producao || []).forEach(cliente => {
-    const total = (cliente.dias || []).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+    const total = somarDias(cliente.dias);
     totalProducao += total;
     if (total > 0) {
       mapaClientes[cliente.nome] = (mapaClientes[cliente.nome] || 0) + total;
@@ -410,7 +421,7 @@ function abrirResumo() {
   });
 
   (dadosMes.chip || []).forEach(cliente => {
-    const total = (cliente.dias || []).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+    const total = somarDias(cliente.dias);
     totalChip += total;
     if (total > 0) {
       mapaClientes[cliente.nome] = (mapaClientes[cliente.nome] || 0) + total;
@@ -477,9 +488,10 @@ function gerarTabelaAbaPDF(doc, dadosLista, tituloSecao, mes, ano, totalDias, st
     let somaCliente = 0;
     let lancamentosCliente = 0;
     const row = [item.nome];
+    const arrayDias = item.dias ? (Array.isArray(item.dias) ? item.dias : Object.values(item.dias)) : [];
 
     for (let d = 0; d < totalDias; d++) {
-      const val = item.dias ? item.dias[d] : null;
+      const val = arrayDias[d];
       if (val !== null && val !== undefined && val !== '') {
         const nVal = parseFloat(val);
         somaCliente += nVal;
