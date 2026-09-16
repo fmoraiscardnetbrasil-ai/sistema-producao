@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Produção Diária | Sistema</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<!-- Biblioteca para Geração de Arquivos Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- Scripts do Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -13,75 +13,126 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <style>
-:root{--blue:#2563eb;--blue2:#1d4ed8;--bg:#f1f5f9;--card:#fff;--line:#d9e2ec;--text:#172033;--muted:#64748b;--green:#16a34a;--red:#dc2626;--purple:#7c3aed}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+:root{
+  --blue:#3b82f6;
+  --blue2:#2563eb;
+  --bg:#0f172a;
+  --card:#1e293b;
+  --card-header:#334155;
+  --line:#334155;
+  --line-light:#475569;
+  --text:#f8fafc;
+  --muted:#94a3b8;
+  --green:#22c55e;
+  --red:#ef4444;
+  --purple:#8b5cf6;
+  --input-bg:#0f172a;
+  --table-head:#1e293b;
+  --weekend-bg:#1a2436;
+  --total-bg:#1e3a8a;
+  --modal-bg-overlay:#000000bb;
+}
+
+/* MODIFICAÇÕES PARA TEMA CLARO */
+body.light-theme {
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --card-header: #e2e8f0;
+  --line: #cbd5e1;
+  --line-light: #94a3b8;
+  --text: #0f172a;
+  --muted: #64748b;
+  --input-bg: #ffffff;
+  --table-head: #e2e8f0;
+  --weekend-bg: #f8fafc;
+  --total-bg: #2563eb;
+  --modal-bg-overlay: #00000077;
+}
+
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);transition:background-color 0.2s, color 0.2s}
 
 /* ESTILOS DA TELA DE LOGIN */
 .auth-wrapper{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-.auth-card{background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow:0 15px 35px #00000015;width:100%;max-width:400px;padding:30px}
+.auth-card{background:var(--card);border-radius:18px;border:1px solid var(--line);box-shadow:0 15px 35px #00000050;width:100%;max-width:400px;padding:30px}
 .auth-card h2{margin:0 0 8px;color:var(--text);font-size:22px;text-align:center}
 .auth-card p{margin:0 0 20px;color:var(--muted);font-size:13px;text-align:center}
-.auth-tabs{display:flex;gap:5px;background:#e2e8f0;padding:4px;border-radius:10px;margin-bottom:20px}
-.auth-tab{flex:1;background:transparent;border:0;padding:8px;border-radius:7px;font-weight:bold;color:#475569;cursor:pointer}
-.auth-tab.active{background:#fff;color:var(--blue);box-shadow:0 2px 6px #00000010}
+.auth-tabs{display:flex;gap:5px;background:var(--input-bg);padding:4px;border-radius:10px;margin-bottom:20px;border:1px solid var(--line)}
+.auth-tab{flex:1;background:transparent;border:0;padding:8px;border-radius:7px;font-weight:bold;color:var(--muted);cursor:pointer}
+.auth-tab.active{background:var(--card);color:var(--blue);box-shadow:0 2px 6px #00000040}
 .auth-form{display:flex;flex-direction:column;gap:14px}
 .auth-form .field{display:flex;flex-direction:column;gap:5px}
-.auth-form input{height:44px;border:1px solid var(--line);border-radius:8px;padding:0 12px}
+.auth-form input{height:44px;border:1px solid var(--line);border-radius:8px;padding:0 12px;background:var(--input-bg);color:var(--text)}
 .auth-form button{height:44px;font-size:14px}
-.auth-error{background:#fee2e2;color:#991b1b;padding:10px;border-radius:8px;font-size:12px;display:none;margin-top:10px;text-align:center}
+.auth-error{background:#450a0a;color:#fca5a5;padding:10px;border-radius:8px;font-size:12px;display:none;margin-top:10px;text-align:center}
 
 /* ESTILOS DO SISTEMA PRINCIPAL */
 .app{max-width:1500px;margin:auto;padding:20px;display:none}
-header{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;padding:24px;border-radius:18px;box-shadow:0 8px 25px #17203318;position:relative}
+header{background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff;padding:24px;border-radius:18px;box-shadow:0 8px 25px #00000040;position:relative}
 header h1{margin:0 0 7px;font-size:27px}header p{margin:0;opacity:.9}
-.user-bar{position:absolute;top:20px;right:20px;display:flex;align-items:center;gap:12px;background:#ffffff22;padding:6px 14px;border-radius:30px;font-size:13px}
+.user-bar{position:absolute;top:20px;right:20px;display:flex;align-items:center;gap:12px;background:#ffffff15;padding:6px 14px;border-radius:30px;font-size:13px}
 .user-bar span{font-weight:bold}
-.user-bar button{background:#ffffff33;color:#fff;border:0;padding:4px 10px;border-radius:15px;font-size:11px;cursor:pointer}
+.user-bar button{background:#ffffff25;color:#fff;border:0;padding:4px 10px;border-radius:15px;font-size:11px;cursor:pointer}
 .user-bar button:hover{background:var(--red)}
-.status-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-top:10px;background:#ffffff33;color:#fff}
+.status-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin-top:10px;background:#ffffff20;color:#fff}
 
-.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#fff;padding:15px;border:1px solid var(--line);border-radius:14px;margin:16px 0}
-.field{display:flex;flex-direction:column;gap:5px}.field label{font-size:12px;font-weight:bold;color:#475569}
-input,select{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 11px;background:#fff;outline:none}
-input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #2563eb18}
+.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:var(--card);padding:15px;border:1px solid var(--line);border-radius:14px;margin:16px 0}
+.field{display:flex;flex-direction:column;gap:5px}.field label{font-size:12px;font-weight:bold;color:var(--muted)}
+input,select{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 11px;background:var(--input-bg);color:var(--text);outline:none}
+input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #3b82f630}
 button{border:0;border-radius:8px;padding:10px 14px;font-weight:bold;cursor:pointer}
-.primary{background:var(--blue);color:white}.primary:hover{background:var(--blue2)}.secondary{background:#e8eef7;color:#26364f}.green{background:var(--green);color:white}.purple{background:var(--purple);color:white}.danger{background:var(--red);color:white}
+.primary{background:var(--blue);color:white}.primary:hover{background:var(--blue2)}.secondary{background:var(--card-header);color:var(--text)}.secondary:hover{background:var(--line-light)}.green{background:var(--green);color:white}.purple{background:var(--purple);color:white}.danger{background:var(--red);color:white}
 .spacer{flex:1}
-.tabs{display:flex;gap:8px;margin-bottom:12px}.tab{background:#e2e8f0;color:#334155;cursor:pointer}.tab.active{background:var(--blue);color:#fff}
-.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}.metric small{display:block;color:var(--muted);font-weight:bold}.metric strong{font-size:23px;display:block;margin-top:5px}
-.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:14px}
+.tabs{display:flex;gap:8px;margin-bottom:12px}.tab{background:var(--card-header);color:var(--muted);cursor:pointer}.tab.active{background:var(--blue);color:#fff}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.metric{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px}.metric small{display:block;color:var(--muted);font-weight:bold}.metric strong{font-size:23px;display:block;margin-top:5px;color:var(--text)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:14px}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:650px}
 table{border-collapse:separate;border-spacing:0;min-width:1200px;width:100%;font-size:12px}
-th,td{border-right:1px solid #e5eaf0;border-bottom:1px solid #e5eaf0;padding:6px 7px;text-align:center;white-space:nowrap}
-th{background:#f8fafc;color:#475569;position:sticky;top:0;z-index:3}
+th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 7px;text-align:center;white-space:nowrap}
+th{background:var(--table-head);color:var(--text);position:sticky;top:0;z-index:3}
 
 /* ESTILOS DA COLUNA DE NOME E DELETAR */
-.name{position:sticky;left:0;z-index:4;background:#fff;text-align:left;min-width:250px;font-weight:bold;display:flex;align-items:center;justify-content:space-between;gap:8px}
-th.name{z-index:5;background:#f8fafc;display:table-cell}
-.btn-delete{background:transparent;border:0;color:#94a3b8;font-size:14px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
-.btn-delete:hover{background:#fee2e2;color:var(--red)}
+.name{position:sticky;left:0;z-index:4;background:var(--card);text-align:left;min-width:250px;font-weight:bold;display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--text)}
+th.name{z-index:5;background:var(--table-head);display:table-cell}
+.btn-delete{background:transparent;border:0;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
+.btn-delete:hover{background:#450a0a;color:var(--red)}
 
-.sum{position:sticky;right:82px;background:#eef4ff;z-index:2;min-width:90px;font-weight:bold}.avg{position:sticky;right:0;background:#f8fafc;z-index:2;min-width:82px;font-weight:bold}
-.day-input{width:68px;height:30px;text-align:center;border:1px solid transparent;background:transparent;border-radius:6px;padding:0 4px}
-.day-input:hover{border-color:#cbd5e1;background:#f8fafc}.day-input:focus{border-color:var(--blue);background:#fff;outline:none}
-.weekend{background:#f8fafc}.total-row td{background:#eaf2ff;font-weight:bold}.total-row .name{background:#eaf2ff}
+.sum{position:sticky;right:82px;background:var(--total-bg);color:#fff;z-index:2;min-width:90px;font-weight:bold}.avg{position:sticky;right:0;background:var(--card-header);color:var(--text);z-index:2;min-width:82px;font-weight:bold}
+.day-input{width:68px;height:30px;text-align:center;border:1px solid transparent;background:transparent;border-radius:6px;padding:0 4px;color:var(--text)}
+.day-input:hover{border-color:var(--line-light);background:var(--card-header)}.day-input:focus{border-color:var(--blue);background:var(--input-bg);outline:none}
+.weekend{background:var(--weekend-bg)}.total-row td{background:var(--total-bg);color:#fff;font-weight:bold}.total-row .name{background:var(--total-bg);color:#fff}
 .hint{font-size:12px;color:var(--muted);margin:8px 0}
-.modal-bg{display:none;position:fixed;inset:0;background:#0f172a99;align-items:center;justify-content:center;padding:18px;z-index:20}
+.modal-bg{display:none;position:fixed;inset:0;background:var(--modal-bg-overlay);align-items:center;justify-content:center;padding:18px;z-index:20}
 .modal-bg.active{display:flex}
-.modal{background:white;border-radius:15px;padding:20px;width:min(600px,100%);max-height:85vh;overflow-y:auto;box-shadow:0 20px 50px #0004}.modal h2{margin-top:0}
+.modal{background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:15px;padding:20px;width:min(600px,100%);max-height:85vh;overflow-y:auto;box-shadow:0 20px 50px #00000080}.modal h2{margin-top:0}
 .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.modal-grid .full{grid-column:1/-1}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.toast{position:fixed;right:20px;bottom:20px;background:#172033;color:white;padding:12px 16px;border-radius:99px;display:none;z-index:30}
+.toast{position:fixed;right:20px;bottom:20px;background:#3b82f6;color:white;padding:12px 16px;border-radius:99px;display:none;z-index:30;box-shadow:0 10px 20px #00000050}
 
-.ranking-list{list-style:none;padding:0;margin:15px 0}
-.ranking-item{display:flex;justify-space:between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
-.ranking-item:nth-child(1){background:#fef9c3;font-weight:bold;border-radius:8px}
-.ranking-item:nth-child(2){background:#f1f5f9;border-radius:8px}
-.ranking-item:nth-child(3){background:#fef2f2;border-radius:8px}
+.ranking-list{list-style:none;padding:0;margin:15px 0;display:flex;flex-direction:column;gap:6px}
+.ranking-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);border-radius:8px}
+
+/* DESTAQUE VERDE PARA OS 3 PRIMEIROS DO RANKING */
+.ranking-item:nth-child(1),
+.ranking-item:nth-child(2),
+.ranking-item:nth-child(3){
+  background: #14532d;
+  color: #f0fdf4;
+  border: 1px solid #22c55e;
+  font-weight: bold;
+}
+.ranking-item:nth-child(1) .badge,
+.ranking-item:nth-child(2) .badge,
+.ranking-item:nth-child(3) .badge {
+  background: #22c55e;
+  color: #052e16;
+  font-weight: bold;
+}
+
 .badge{background:var(--blue);color:white;padding:3px 8px;border-radius:12px;font-size:11px}
 
-.resumo-box{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:20px;margin:18px 0;display:flex;flex-direction:column;gap:16px;text-align:left}
-.resumo-box div{padding-bottom:12px;border-bottom:1px dashed #cbd5e1}
+.resumo-box{background:var(--input-bg);border:1px solid var(--line);border-radius:12px;padding:20px;margin:18px 0;display:flex;flex-direction:column;gap:16px;text-align:left}
+.resumo-box div{padding-bottom:12px;border-bottom:1px dashed var(--line)}
 .resumo-box div:last-child{border-bottom:none;padding-bottom:0}
 .resumo-box div span{display:block;font-size:12px;color:var(--muted);font-weight:bold;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
 .resumo-box div strong{font-size:22px;color:var(--text)}
@@ -134,16 +185,26 @@ th.name{z-index:5;background:#f8fafc;display:table-cell}
   <div class="field"><label>MÊS</label><select id="mes" onchange="render(true)">
     <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
     <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-    <option value="7">Julho</option><option value="8" selected>Agosto</option><option value="9">Setembro</option>
+    <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
     <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
   </select></div>
   <div class="field"><label>ANO</label><input id="ano" type="number" value="2026" min="2020" max="2100" onchange="render(true)"></div>
   <div class="field"><label>BUSCAR CLIENTE / PRODUTO</label><input id="busca" placeholder="Digite para filtrar..." oninput="render(true)"></div>
+  
+  <!-- CONTROLE DE TEMA CLARO E ESCURO -->
+  <div class="field">
+    <label>TEMA</label>
+    <select id="seletorTema" onchange="alternarTema(this.value)">
+      <option value="dark">🌙 Escuro</option>
+      <option value="light">☀️ Claro</option>
+    </select>
+  </div>
+
   <button id="btnNovoLancamento" class="primary" onclick="abrirLancamento()">+ Novo lançamento</button>
   <button id="btnNovoCliente" class="secondary" onclick="adicionarCliente()">+ Cliente / Produto</button>
   <button class="purple" onclick="abrirResumo()">📊 Ver Resumo Geral / Ranking</button>
   <div class="spacer"></div>
-  <button class="green" onclick="baixarPDF()">Baixar PDF Completo</button>
+  <button class="green" onclick="baixarExcel()">Baixar Excel Completo</button>
   <button id="btnBackup" class="secondary" onclick="exportarBackup()">Backup</button>
   <button id="btnRestaurar" class="secondary" onclick="document.getElementById('arquivoBackup').click()">Restaurar</button>
   <input id="arquivoBackup" type="file" accept=".json" hidden onchange="importarBackup(event)">
@@ -225,12 +286,33 @@ const auth = firebase.auth();
 
 let modoAuth = 'login';
 let ehAdmin = false;
+let carregouMesInicial = false;
 
-// INSIRA O SEU E-MAIL CADASTRADO EXACTAMENTE AQUI
+// EMAILS COM PERMISSÃO DE ADMIN
 const EMAILS_ADMIN = [
   "fmoraiscardnetbrasil@gmail.com",
-  "acassiano@cardnetbrasil.com.br" // <-- Coloque o segundo e-mail aqui
+  "acassiano@cardnetbrasil.com.br"
 ];
+
+// GERENCIAMENTO DE TEMAS
+function aplicarTemaSalvo() {
+  const temaSalvo = localStorage.getItem('tema_sistema') || 'dark';
+  alternarTema(temaSalvo);
+}
+
+function alternarTema(tema) {
+  if (tema === 'light') {
+    document.body.classList.add('light-theme');
+  } else {
+    document.body.classList.remove('light-theme');
+  }
+  localStorage.setItem('tema_sistema', tema);
+  const seletor = document.getElementById('seletorTema');
+  if (seletor) seletor.value = tema;
+}
+
+// INICIALIZAR TEMA AO CARREGAR
+aplicarTemaSalvo();
 
 function alternarAbaAuth(modo) {
   modoAuth = modo;
@@ -381,6 +463,45 @@ function objetoDiasNormalizado(diasEntrada) {
   return obj;
 }
 
+// OBTÉM O MÊS E ANO DO ÚLTIMO LANÇAMENTO REGISTRADO
+function selecionarUltimoMesComLancamento() {
+  let ultimoAno = null;
+  let ultimoMes = null;
+
+  Object.keys(bancoDados).forEach(chave => {
+    const partes = chave.split('_');
+    if (partes.length === 2) {
+      const ano = parseInt(partes[0], 10);
+      const mes = parseInt(partes[1], 10);
+      const dadosMes = bancoDados[chave];
+
+      let possuiLancamento = false;
+      ['producao', 'chip'].forEach(cat => {
+        if (dadosMes[cat]) {
+          dadosMes[cat].forEach(item => {
+            const diasObj = item.diasObj || item.dias || {};
+            if (Object.keys(diasObj).length > 0) {
+              possuiLancamento = true;
+            }
+          });
+        }
+      });
+
+      if (possuiLancamento) {
+        if (!ultimoAno || ano > ultimoAno || (ano === ultimoAno && mes > ultimoMes)) {
+          ultimoAno = ano;
+          ultimoMes = mes;
+        }
+      }
+    }
+  });
+
+  if (ultimoAno && ultimoMes) {
+    document.getElementById('mes').value = ultimoMes;
+    document.getElementById('ano').value = ultimoAno;
+  }
+}
+
 function iniciarEscutaFirebase() {
   const dbRef = database.ref('producao_dados');
   dbRef.on('value', (snapshot) => {
@@ -400,6 +521,12 @@ function iniciarEscutaFirebase() {
     document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
     document.getElementById('statusFirebase').style.background = '#16a34a33';
     
+    // Seleciona o mês do último lançamento no primeiro carregamento
+    if (!carregouMesInicial) {
+      selecionarUltimoMesComLancamento();
+      carregouMesInicial = true;
+    }
+
     if (!usuarioEditando) {
       render(false);
     }
@@ -791,17 +918,13 @@ function abrirResumo() {
   document.getElementById('modalResumo').classList.add('active');
 }
 
-function gerarTabelaAbaPDF(doc, dadosLista, tituloSecao, mes, ano, totalDias, startYPos) {
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.setTextColor(37, 99, 235);
-  doc.text(tituloSecao, 14, startYPos);
-
+// GERAR MATRIZ DE DADOS PARA EXCEL
+function montarMatrizAbaExcel(dadosLista, totalDias) {
   const headers = ['Cliente / Produto'];
   for (let d = 1; d <= totalDias; d++) headers.push(`${d}`);
   headers.push('TOTAL', 'MÉDIA');
 
-  const rows = [];
+  const rows = [headers];
   let totDia = new Array(totalDias).fill(0);
   let somaGeral = 0;
   let totalLancamentos = 0;
@@ -821,83 +944,61 @@ function gerarTabelaAbaPDF(doc, dadosLista, tituloSecao, mes, ano, totalDias, st
         somaGeral += nVal;
         lancamentosCliente++;
         totalLancamentos++;
-        row.push(nVal.toLocaleString('pt-BR'));
+        row.push(nVal);
       } else {
-        row.push('-');
+        row.push('');
       }
     }
 
-    const mediaCliente = lancamentosCliente > 0 ? (somaCliente / lancamentosCliente).toFixed(1) : '0';
-    row.push(somaCliente.toLocaleString('pt-BR'), mediaCliente);
+    const mediaCliente = lancamentosCliente > 0 ? parseFloat((somaCliente / lancamentosCliente).toFixed(1)) : 0;
+    row.push(somaCliente, mediaCliente);
     rows.push(row);
   });
 
   const totalRow = ['TOTAL DIÁRIO'];
   for (let d = 0; d < totalDias; d++) {
-    totalRow.push(totDia[d] > 0 ? totDia[d].toLocaleString('pt-BR') : '-');
+    totalRow.push(totDia[d] > 0 ? totDia[d] : '');
   }
-  const mediaGeral = totalLancamentos > 0 ? (somaGeral / totalLancamentos).toFixed(1) : '0';
-  totalRow.push(somaGeral.toLocaleString('pt-BR'), mediaGeral);
+  const mediaGeral = totalLancamentos > 0 ? parseFloat((somaGeral / totalLancamentos).toFixed(1)) : 0;
+  totalRow.push(somaGeral, mediaGeral);
   rows.push(totalRow);
 
-  doc.autoTable({
-    startY: startYPos + 4,
-    head: [headers],
-    body: rows,
-    theme: 'grid',
-    styles: { fontSize: 5, cellPadding: 0.8, halign: 'center' },
-    columnStyles: { 0: { halign: 'left', cellWidth: 32 } },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-    didParseCell: function(data) {
-      if (data.row.index === rows.length - 1) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [234, 242, 255];
-      }
-    }
-  });
-
-  return somaGeral;
+  return { rows, somaGeral };
 }
 
-function baixarPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  
+// EXPORTAR EXCEL (.XLSX)
+function baixarExcel() {
   const mes = parseInt(document.getElementById('mes').value, 10);
   const ano = parseInt(document.getElementById('ano').value, 10);
   const totalDias = getDiasNoMes(mes, ano);
   const dadosMes = obterDadosMesAtual();
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(23, 32, 51);
-  doc.text(`Relatório Completo de Produção — ${mesesNomes[mes - 1]}/${ano}`, 14, 12);
+  const wb = XLSX.utils.book_new();
 
-  const totalProd = gerarTabelaAbaPDF(doc, dadosMes.producao, "1. PRODUÇÃO", mes, ano, totalDias, 18);
+  // Aba 1: Produção
+  const prodData = montarMatrizAbaExcel(dadosMes.producao, totalDias);
+  const wsProd = XLSX.utils.aoa_to_sheet(prodData.rows);
+  XLSX.utils.book_append_sheet(wb, wsProd, "Produção");
 
-  doc.addPage();
+  // Aba 2: Produção Chip
+  const chipData = montarMatrizAbaExcel(dadosMes.chip, totalDias);
+  const wsChip = XLSX.utils.aoa_to_sheet(chipData.rows);
+  XLSX.utils.book_append_sheet(wb, wsChip, "Produção Chip");
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(23, 32, 51);
-  doc.text(`Relatório Completo de Produção — ${mesesNomes[mes - 1]}/${ano}`, 14, 12);
+  // Aba 3: Resumo
+  const totalGeral = prodData.somaGeral + chipData.somaGeral;
+  const resumoRows = [
+    ["RESUMO DE PRODUÇÃO - " + mesesNomes[mes - 1] + "/" + ano],
+    [""],
+    ["Categoria", "Total de Produção (unid)"],
+    ["Produção", prodData.somaGeral],
+    ["Produção Chip", chipData.somaGeral],
+    ["TOTAL GERAL ACUMULADO", totalGeral]
+  ];
+  const wsResumo = XLSX.utils.aoa_to_sheet(resumoRows);
+  XLSX.utils.book_append_sheet(wb, wsResumo, "Resumo Geral");
 
-  const totalChip = gerarTabelaAbaPDF(doc, dadosMes.chip, "2. PRODUÇÃO CHIP", mes, ano, totalDias, 18);
-
-  const finalY = doc.lastAutoTable.finalY + 8;
-  const totalGeral = totalProd + totalChip;
-
-  doc.setFontSize(10);
-  doc.setFillColor(241, 245, 249);
-  doc.rect(14, finalY, 269, 28, 'F');
-  
-  doc.setTextColor(71, 85, 105);
-  doc.text(`QUANTIDADE DE PRODUÇÃO TOTAL GERAL: ${totalProd.toLocaleString('pt-BR')} unid`, 20, finalY + 8);
-  doc.text(`PRODUÇÃO CHIP TOTAL GERAL: ${totalChip.toLocaleString('pt-BR')} unid`, 20, finalY + 16);
-  doc.setTextColor(37, 99, 235);
-  doc.text(`TOTAL GERAL ACUMULADO: ${totalGeral.toLocaleString('pt-BR')} unid`, 20, finalY + 24);
-
-  doc.save(`relatorio_completo_producao_${mesesNomes[mes-1]}_${ano}.pdf`);
+  XLSX.writeFile(wb, `relatorio_producao_${mesesNomes[mes - 1]}_${ano}.xlsx`);
 }
 
 function limparMes() {
