@@ -7,6 +7,9 @@
 <!-- Biblioteca para Geração de Arquivos Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
+<!-- Biblioteca Chart.js para Gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <!-- Scripts do Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -203,6 +206,7 @@ th.name{z-index:5;background:var(--table-head);display:table-cell}
   <button id="btnNovoLancamento" class="primary" onclick="abrirLancamento()">+ Novo lançamento</button>
   <button id="btnNovoCliente" class="secondary" onclick="adicionarCliente()">+ Cliente / Produto</button>
   <button class="purple" onclick="abrirResumo()">📊 Ver Resumo Geral / Ranking</button>
+  <button class="primary" onclick="abrirAnaliseComparativa()">📈 Análise Anual / Mensal</button>
   <div class="spacer"></div>
   <button class="green" onclick="baixarExcel()">Baixar Excel Completo</button>
   <button id="btnBackup" class="secondary" onclick="exportarBackup()">Backup</button>
@@ -265,6 +269,32 @@ th.name{z-index:5;background:var(--table-head);display:table-cell}
   </div>
 </div>
 
+<!-- Modal Análise Comparativa -->
+<div class="modal-bg" id="modalAnalise">
+  <div class="modal" style="width: min(900px, 100%);">
+    <h2>📈 Análise Comparativa de Produção</h2>
+    
+    <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+      <div class="field" style="flex:1;">
+        <label>TIPO DE COMPARAÇÃO</label>
+        <select id="tipoAnalise" onchange="atualizarGraficoComparativo()">
+          <option value="mensal">Comparativo Mensal (Ano Selecionado)</option>
+          <option value="anual">Comparativo Anual (Anos Registrados)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Container do Gráfico -->
+    <div style="background: var(--input-bg); padding: 15px; border-radius: 12px; border: 1px solid var(--line); position: relative; height: 350px;">
+      <canvas id="graficoComparativo"></canvas>
+    </div>
+
+    <div class="actions" style="margin-top: 20px;">
+      <button class="primary" onclick="fecharModal('modalAnalise')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast">Salvo na nuvem!</div>
 
 <script>
@@ -287,6 +317,7 @@ const auth = firebase.auth();
 let modoAuth = 'login';
 let ehAdmin = false;
 let carregouMesInicial = false;
+let meuGrafico = null;
 
 // EMAILS COM PERMISSÃO DE ADMIN
 const EMAILS_ADMIN = [
@@ -521,7 +552,6 @@ function iniciarEscutaFirebase() {
     document.getElementById('statusFirebase').innerText = '🟢 Conectado ao Firebase';
     document.getElementById('statusFirebase').style.background = '#16a34a33';
     
-    // Seleciona o mês do último lançamento no primeiro carregamento
     if (!carregouMesInicial) {
       selecionarUltimoMesComLancamento();
       carregouMesInicial = true;
@@ -918,6 +948,118 @@ function abrirResumo() {
   document.getElementById('modalResumo').classList.add('active');
 }
 
+// FUNÇÕES DA ANÁLISE COMPARATIVA (GRÁFICOS)
+function abrirAnaliseComparativa() {
+  document.getElementById('modalAnalise').classList.add('active');
+  setTimeout(() => atualizarGraficoComparativo(), 100);
+}
+
+function atualizarGraficoComparativo() {
+  const tipo = document.getElementById('tipoAnalise').value;
+  const anoAtual = parseInt(document.getElementById('ano').value, 10);
+  const ctx = document.getElementById('graficoComparativo').getContext('2d');
+
+  let rotulos = [];
+  let valoresProducao = [];
+  let valoresChip = [];
+
+  if (tipo === 'mensal') {
+    rotulos = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    valoresProducao = new Array(12).fill(0);
+    valoresChip = new Array(12).fill(0);
+
+    for (let m = 1; m <= 12; m++) {
+      const chave = `${anoAtual}_${m}`;
+      if (bancoDados[chave]) {
+        if (bancoDados[chave].producao) {
+          bancoDados[chave].producao.forEach(c => {
+            valoresProducao[m - 1] += somarDias(c.diasObj || c.dias);
+          });
+        }
+        if (bancoDados[chave].chip) {
+          bancoDados[chave].chip.forEach(c => {
+            valoresChip[m - 1] += somarDias(c.diasObj || c.dias);
+          });
+        }
+      }
+    }
+  } else {
+    const anosSet = new Set();
+    Object.keys(bancoDados).forEach(chave => {
+      const partes = chave.split('_');
+      if (partes.length === 2) anosSet.add(parseInt(partes[0], 10));
+    });
+
+    rotulos = Array.from(anosSet).sort((a, b) => a - b);
+    valoresProducao = new Array(rotulos.length).fill(0);
+    valoresChip = new Array(rotulos.length).fill(0);
+
+    rotulos.forEach((ano, idx) => {
+      for (let m = 1; m <= 12; m++) {
+        const chave = `${ano}_${m}`;
+        if (bancoDados[chave]) {
+          if (bancoDados[chave].producao) {
+            bancoDados[chave].producao.forEach(c => {
+              valoresProducao[idx] += somarDias(c.diasObj || c.dias);
+            });
+          }
+          if (bancoDados[chave].chip) {
+            bancoDados[chave].chip.forEach(c => {
+              valoresChip[idx] += somarDias(c.diasObj || c.dias);
+            });
+          }
+        }
+      }
+    });
+  }
+
+  if (meuGrafico) {
+    meuGrafico.destroy();
+  }
+
+  meuGrafico = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: rotulos,
+      datasets: [
+        {
+          label: 'Produção',
+          data: valoresProducao,
+          backgroundColor: '#3b82f6',
+          borderRadius: 6
+        },
+        {
+          label: 'Produção Chip',
+          data: valoresChip,
+          backgroundColor: '#8b5cf6',
+          borderRadius: 6
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: getComputedStyle(document.body).getPropertyValue('--text').trim()
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: getComputedStyle(document.body).getPropertyValue('--line').trim() },
+          ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted').trim() }
+        },
+        y: {
+          grid: { color: getComputedStyle(document.body).getPropertyValue('--line').trim() },
+          ticks: { color: getComputedStyle(document.body).getPropertyValue('--muted').trim() }
+        }
+      }
+    }
+  });
+}
+
 // GERAR MATRIZ DE DADOS PARA EXCEL
 function montarMatrizAbaExcel(dadosLista, totalDias) {
   const headers = ['Cliente / Produto'];
@@ -975,17 +1117,14 @@ function baixarExcel() {
 
   const wb = XLSX.utils.book_new();
 
-  // Aba 1: Produção
   const prodData = montarMatrizAbaExcel(dadosMes.producao, totalDias);
   const wsProd = XLSX.utils.aoa_to_sheet(prodData.rows);
   XLSX.utils.book_append_sheet(wb, wsProd, "Produção");
 
-  // Aba 2: Produção Chip
   const chipData = montarMatrizAbaExcel(dadosMes.chip, totalDias);
   const wsChip = XLSX.utils.aoa_to_sheet(chipData.rows);
   XLSX.utils.book_append_sheet(wb, wsChip, "Produção Chip");
 
-  // Aba 3: Resumo
   const totalGeral = prodData.somaGeral + chipData.somaGeral;
   const resumoRows = [
     ["RESUMO DE PRODUÇÃO - " + mesesNomes[mes - 1] + "/" + ano],
