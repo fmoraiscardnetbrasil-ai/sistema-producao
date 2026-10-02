@@ -91,11 +91,12 @@ button{border:0;border-radius:8px;padding:10px 14px;font-weight:bold;cursor:poin
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:14px}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:650px}
 table{border-collapse:separate;border-spacing:0;min-width:1200px;width:100%;font-size:12px}
-th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 7px;text-align:center;white-space:nowrap}
+th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 7px;text-align:center;white-space:nowrap;height:38px;vertical-align:middle;}
 th{background:var(--table-head);color:var(--text);position:sticky;top:0;z-index:3}
 
-/* ESTILOS DA COLUNA DE NOME E DELETAR */
-.name{position:sticky;left:0;z-index:4;background:var(--card);text-align:left;min-width:250px;font-weight:bold;display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--text)}
+/* ESTILOS DA COLUNA DE NOME E DELETAR - CORREÇÃO DE ALINHAMENTO */
+.name{position:sticky;left:0;z-index:4;background:var(--card);text-align:left;min-width:250px;max-width:250px;width:250px;font-weight:bold;display:table-cell;color:var(--text)}
+.name-content {display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;height:100%;}
 th.name{z-index:5;background:var(--table-head);display:table-cell}
 .btn-delete{background:transparent;border:0;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
 .btn-delete:hover{background:#450a0a;color:var(--red)}
@@ -642,8 +643,10 @@ function render(forcar = false) {
     
     html += `<tr id="row-${index}">
       <td class="name">
-        <span>${item.nome}</span>
-        <button class="btn-delete" title="Excluir este cliente" onclick="deletarCliente('${item.nome.replace(/'/g, "\\'")}')">🗑️</button>
+        <div class="name-content">
+          <span>${item.nome}</span>
+          <button class="btn-delete" title="Excluir este cliente" onclick="deletarCliente('${item.nome.replace(/'/g, "\\'")}')">🗑️</button>
+        </div>
       </td>`;
       
     const diasObj = item.diasObj || {};
@@ -681,7 +684,7 @@ function render(forcar = false) {
     html += `<td class="avg" id="avg-${index}">${mediaCliente}</td></tr>`;
   });
 
-  html += '<tr class="total-row"><td class="name">TOTAL DIÁRIO</td>';
+  html += '<tr class="total-row"><td class="name"><div class="name-content"><span>TOTAL DIÁRIO</span></div></td>';
   for (let d = 0; d < totalDias; d++) {
     html += `<td id="tot-col-${d}">${totDia[d] > 0 ? totDia[d].toLocaleString('pt-BR') : '-'}</td>`;
   }
